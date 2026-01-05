@@ -61,7 +61,13 @@ OPENROUTER_API_KEY=...   # Enables LLM classification automatically
 
 ## Background
 
-Curare implements the clustering methodology from [**"Breaking some satisficing laws" (Saldanha & Korbak, 2025)**](https://www.interconnects.ai/p/breaking-some-laws), which showed that ~20% of a character dataset can match full dataset performance when carefully curated.
+Curare implements the clustering methodology from [**"I want to break some laws too"**](https://snats.xyz/pages/articles/breaking_some_laws.html), which builds on the [Minipile paper](https://huggingface.co/datasets/JeanKaddour/minipile). The key finding: careful data curation can match full dataset performance with a fraction of the data.
+
+**The pipeline:**
+1. Embed the dataset
+2. Cluster with k-means (elbow method for optimal k)
+3. Use LLM to classify clusters as high/low quality
+4. Keep only the good stuff
 
 **Key insights:**
 - **Typicality sampling** — Curare selects samples *nearest to cluster centroids* rather than random samples. This gives the LLM the most representative examples of each cluster.
