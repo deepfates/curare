@@ -56,20 +56,22 @@ Other:
 ## Environment
 
 ```bash
-OPENROUTER_API_KEY=...   # Enables LLM classification
+OPENROUTER_API_KEY=...   # Enables LLM classification automatically
 ```
 
-With the API key set, curare automatically uses LLM classification. Without it, falls back to fast heuristic.
+## Background
 
-## Library
+Curare implements the clustering methodology from [**"Breaking some satisficing laws" (Saldanha & Korbak, 2025)**](https://www.interconnects.ai/p/breaking-some-laws), which showed that ~20% of a character dataset can match full dataset performance when carefully curated.
 
-```typescript
-import { getTextEmbeddings, findOptimalK, clusterEmbeddings } from 'curare';
+**Key insights:**
+- **Typicality sampling** — Curare selects samples *nearest to cluster centroids* rather than random samples. This gives the LLM the most representative examples of each cluster.
+- **Quality over quantity** — The paper found diminishing returns past ~1000 high-quality examples. More data isn't always better.
+- **Cluster inspection** — Use `-o clusters.json` to inspect cluster samples before committing to a split.
 
-const embeddings = await getTextEmbeddings(items);
-const k = findOptimalK(embeddings);
-const { clusters, centroids } = clusterEmbeddings(embeddings, k);
-```
+**Tips for best results:**
+- Use `--classify-llm` with a custom prompt (via `--quality-prompt-file`) tailored to your use case
+- Increase samples with `-s 15` or `-s 20` for highly idiosyncratic content
+- Start with `--no-llm` to quickly inspect clusters, then run with LLM for final split
 
 ## License
 
