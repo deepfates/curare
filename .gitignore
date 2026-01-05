@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.cache/
+*.log
+.env
+
+# Output
+out/
+curare-out/
+clusters.json
+
+# Cache
+.curare/
+
+# macOS
+.DS_Store
