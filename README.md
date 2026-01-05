@@ -1,6 +1,6 @@
 # 🎯 curare
 
-> *A small, sharp tool for butchering your data*
+> *Precision curation for your data*
 
 Semantic clustering + quality rating for training datasets. Feed it conversations, get back high/low quality splits.
 

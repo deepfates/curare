@@ -1,7 +1,7 @@
 {
   "name": "curare",
   "version": "0.1.0",
-  "description": "A small, sharp tool for butchering your data — auto-cluster text and images",
+  "description": "Precision curation for your data — semantic clustering for training datasets",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
