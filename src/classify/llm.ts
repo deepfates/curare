@@ -7,13 +7,14 @@ import type { ClusterClassification } from './heuristic.js';
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_MODEL = 'google/gemini-3-flash-preview';
 
-const DEFAULT_PROMPT = `You are a data curator. Classify this cluster of text samples.
+// Minimal default prompt - users provide domain-specific examples via --quality-prompt-file
+const DEFAULT_PROMPT = `You are a data curator classifying clusters for training data quality.
 
-Respond with JSON: {"tag": "short descriptive label", "rating": "high" or "low"}
+Rate as HIGH or LOW quality based on:
+- HIGH: Diverse content, substantive depth, interesting perspectives, educational or creative value
+- LOW: Repetitive patterns, shallow/short content, spam, placeholder text, low information density
 
-Rating criteria:
-- HIGH: Original thought, substantive discussion, interesting perspectives
-- LOW: Short/simple messages, repetitive content, low information density
+Respond with JSON: {"tag": "short_label", "rating": "high" or "low"}
 
 Samples:`;
 
