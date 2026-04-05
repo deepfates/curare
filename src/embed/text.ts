@@ -5,7 +5,7 @@
 import { pipeline } from '@xenova/transformers';
 import { EmbeddingCache } from '../io/cache.js';
 
-let extractor: any = null;
+const extractors = new Map<string, any>();
 
 const DEFAULT_MODEL = 'Xenova/all-MiniLM-L6-v2';
 
@@ -29,9 +29,11 @@ export async function getTextEmbeddings(
 ): Promise<number[][]> {
   const model = options.model ?? DEFAULT_MODEL;
   const cache = options.cache;
-  
+
+  let extractor = extractors.get(model);
   if (!extractor) {
     extractor = await pipeline('feature-extraction', model);
+    extractors.set(model, extractor);
   }
 
   const results: number[][] = [];

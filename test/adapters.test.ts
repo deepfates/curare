@@ -25,6 +25,7 @@ describe('input adapters', () => {
     expect(adapter).toBe('text-jsonl');
     expect(items).toHaveLength(2);
     expect(items[0].text).toBe('hello');
+    expect(items[0].originalLine).toBe('{"id":"1","text":"hello"}');
   });
 
   it('detects alpaca format', async () => {
@@ -36,6 +37,19 @@ describe('input adapters', () => {
     expect(adapter).toBe('alpaca');
     expect(items[0].text).toContain('Do X');
     expect(items[0].text).toContain('result Z');
+    expect(items[0].originalLine).toBe('{"instruction":"Do X","input":"with Y","output":"result Z"}');
+  });
+
+  it('preserves original line for ShareGPT format', async () => {
+    const file = path.join(tempDir, 'sharegpt.jsonl');
+    const line = '{"id":"c1","conversations":[{"from":"human","value":"hi"},{"from":"gpt","value":"hello"}]}';
+    await fs.writeFile(file, `${line}\n`);
+
+    const { adapter, items } = await autoLoad(file);
+
+    expect(adapter).toBe('sharegpt');
+    expect(items).toHaveLength(1);
+    expect(items[0].originalLine).toBe(line);
   });
 
   it('detects folder format', async () => {

@@ -42,6 +42,7 @@ Classification:
   --classify-llm        Force LLM (auto if OPENROUTER_API_KEY set)
   --no-llm              Disable LLM quality rating (offline clusters-only mode)
   --quality-prompt-file Custom prompt for LLM
+  --llm-concurrency <n> Max concurrent LLM requests (default: 4)
   -s, --samples <n>     Samples per cluster (default: 10)
 
 Clustering:
@@ -57,6 +58,7 @@ Other:
 
 ```bash
 OPENROUTER_API_KEY=...   # Enables LLM classification automatically
+CURARE_EMBED_MODEL=...   # Optional embeddings model (default: Xenova/all-MiniLM-L6-v2)
 ```
 
 ## Background

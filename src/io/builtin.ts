@@ -24,7 +24,7 @@ registerAdapter({
       try {
         const obj = JSON.parse(line);
         const text = [obj.instruction, obj.input, obj.output].filter(Boolean).join('\n\n');
-        yield { id: obj.id ?? String(idx++), text };
+        yield { id: obj.id ?? String(idx++), text, originalLine: line };
       } catch { /* skip */ }
     }
   }
@@ -48,7 +48,7 @@ registerAdapter({
       try {
         const obj = JSON.parse(line);
         const text = obj.conversations.map((c: { value: string }) => c.value).join('\n\n');
-        yield { id: obj.id ?? String(idx++), text };
+        yield { id: obj.id ?? String(idx++), text, originalLine: line };
       } catch { /* skip */ }
     }
   }
@@ -104,7 +104,7 @@ registerAdapter({
       try {
         const obj = JSON.parse(line);
         if (obj.text) {
-          yield { id: obj.id ?? String(idx++), text: obj.text };
+          yield { id: obj.id ?? String(idx++), text: obj.text, originalLine: line };
         }
       } catch { /* skip */ }
     }
