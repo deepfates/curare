@@ -79,4 +79,14 @@ describe('EmbeddingCache', () => {
     
     expect(cache.get('any', 'any')).toBeUndefined();
   });
+
+  it('uses Xenova default model name in cache file path', async () => {
+    const cache = new EmbeddingCache(tempDir);
+    await cache.load();
+    cache.set('id1', 'text', [1, 2, 3]);
+    await cache.save();
+
+    const files = await fs.readdir(tempDir);
+    expect(files).toContain('embeddings-Xenova_all-MiniLM-L6-v2.json');
+  });
 });

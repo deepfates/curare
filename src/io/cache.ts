@@ -23,7 +23,7 @@ export class EmbeddingCache {
   private data: CacheEntry | null = null;
   private dirty = false;
 
-  constructor(cacheDir = DEFAULT_CACHE_DIR, model = 'all-MiniLM-L6-v2') {
+  constructor(cacheDir = DEFAULT_CACHE_DIR, model = 'Xenova/all-MiniLM-L6-v2') {
     this.cacheDir = cacheDir;
     this.model = model;
   }

@@ -23,6 +23,7 @@ interface CLIOptions {
   model?: string;
   promptFile?: string;
   verbose: boolean;
+  llmConcurrency: number;
 }
 
 function parseArgs(argv: string[]): CLIOptions {
@@ -33,6 +34,7 @@ function parseArgs(argv: string[]): CLIOptions {
     outDir: 'curare-out',  // Default to multi-file output
     samples: 10,  // Better for typicality sampling
     verbose: false,
+    llmConcurrency: 4,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -52,6 +54,8 @@ function parseArgs(argv: string[]): CLIOptions {
       opts.model = args[++i];
     } else if (a === '--quality-prompt-file') {
       opts.promptFile = args[++i];
+    } else if (a === '--llm-concurrency') {
+      opts.llmConcurrency = Math.max(1, parseInt(args[++i], 10) || 1);
     } else if (a === '-s' || a === '--samples') {
       opts.samples = parseInt(args[++i], 10);
     } else if (a === '-v' || a === '--verbose') {
@@ -83,7 +87,7 @@ Examples:
   curare ./texts/ -d out/               # Cluster folder of .md/.txt files
 
 Input:
-  <input>               JSONL file, folder of .md/.txt files, or image folder
+  <input>               JSONL file or folder of .md/.txt files
                         Auto-detects: Alpaca, ShareGPT, OAI, Splice, raw text
 
 Output (default: curare-out/):
@@ -95,6 +99,7 @@ Classification:
   --no-llm              Force heuristic classification (fast, offline)
   --model <name>        OpenRouter model (default: google/gemini-3-flash-preview)
   --quality-prompt-file <path>  Custom prompt from file
+  --llm-concurrency <n> Max concurrent LLM calls (default: 4)
   -s, --samples <n>     Samples per cluster (default: 10)
 
 Clustering:
@@ -146,12 +151,14 @@ async function main() {
 
   // Initialize cache
   const { EmbeddingCache } = await import('./io/cache.js');
-  const cache = new EmbeddingCache();
+  const embedModel = process.env.CURARE_EMBED_MODEL ?? 'Xenova/all-MiniLM-L6-v2';
+  const cache = new EmbeddingCache('.curare', embedModel);
   await cache.load();
 
   // Embed
   log('Computing embeddings...');
   const embeddings = await getTextEmbeddings(items, {
+    model: embedModel,
     cache,
     onProgress: opts.verbose 
       ? (n, t, c) => process.stderr.write(`\rEmbedding ${n}/${t} (${c} cached)`)
@@ -200,14 +207,14 @@ async function main() {
       tag: classification.tag,
       rating: classification.rating,
       items: indices.map(i => items[i].id),
-      samples: samples.slice(0, 3),
+      samples,
     };
   };
 
-  // Parallel classification for LLM, sequential for heuristic (already fast)
+  // Throttle LLM classification requests; heuristic stays sequential and fast.
   const results = useLlm
-    ? await Promise.all(clusterEntries.map(classifyOne))
-    : await Promise.all(clusterEntries.map(classifyOne));
+    ? await mapWithConcurrency(clusterEntries, opts.llmConcurrency, classifyOne)
+    : await mapWithConcurrency(clusterEntries, 1, classifyOne);
 
   // Output
   const sortedResults = results.sort((a, b) => b.size - a.size);
@@ -227,10 +234,11 @@ async function main() {
     // Collect items by rating - preserve original format when available
     const highItems: string[] = [];
     const lowItems: string[] = [];
+    const itemById = new Map(items.map(item => [item.id, item]));
     
     for (const cluster of sortedResults) {
       const clusterItems = cluster.items.map(id => {
-        const item = items.find(i => i.id === id);
+        const item = itemById.get(id);
         if (!item) return null;
         // Use original line if available (preserves OAI format), else normalized
         return item.originalLine ?? JSON.stringify({ id: item.id, text: item.text });
@@ -257,7 +265,7 @@ async function main() {
       for (const cluster of sortedResults) {
         const targetDir = cluster.rating === 'high' ? highDir : lowDir;
         for (const id of cluster.items) {
-          const item = items.find(i => i.id === id);
+          const item = itemById.get(id);
           if (item) {
             await fs.writeFile(path.join(targetDir, item.id), item.text);
             if (cluster.rating === 'high') highCount++; else lowCount++;
@@ -284,6 +292,26 @@ async function main() {
     await fs.writeFile(opts.out, JSON.stringify(output, null, 2));
     console.log(`Wrote ${results.length} clusters to ${opts.out}`);
   }
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= items.length) return;
+      results[index] = await mapper(items[index]);
+    }
+  });
+
+  await Promise.all(workers);
+  return results;
 }
 
 main().catch(err => {
