@@ -5,10 +5,19 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { execSync } from 'node:child_process';
+import { execSync, spawnSync } from 'node:child_process';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
+
+async function exists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 describe('E2E Pipeline', () => {
   let tempDir: string;
@@ -25,7 +34,7 @@ describe('E2E Pipeline', () => {
     await fs.rm(tempDir, { recursive: true });
   });
 
-  it('processes JSONL through full pipeline with heuristic classification', async () => {
+  it('processes JSONL through full pipeline in offline clusters-only mode', async () => {
     // Create test input with distinct clusters
     const items = [
       // Cluster 1: Short simple
@@ -44,7 +53,8 @@ describe('E2E Pipeline', () => {
     const cwd = path.resolve(import.meta.dirname, '..');
     execSync(`npx tsx src/cli.ts ${inputFile} -k 2 -o ${outputFile}`, { 
       cwd, 
-      stdio: 'pipe'
+      stdio: 'pipe',
+      env: { ...process.env, OPENROUTER_API_KEY: '' },
     });
 
     // Verify output
@@ -57,7 +67,7 @@ describe('E2E Pipeline', () => {
     for (const cluster of output.clusters) {
       expect(cluster.items.length).toBeGreaterThan(0);
       expect(cluster.tag).toBeDefined();
-      expect(['high', 'low']).toContain(cluster.rating);
+      expect(cluster).not.toHaveProperty('rating');
       expect(cluster.samples.length).toBeGreaterThan(0);
     }
 
@@ -79,7 +89,8 @@ describe('E2E Pipeline', () => {
     
     execSync(`npx tsx src/cli.ts ${folderPath} -k 2 -o ${folderOutput}`, {
       cwd,
-      stdio: 'pipe'
+      stdio: 'pipe',
+      env: { ...process.env, OPENROUTER_API_KEY: '' },
     });
 
     const output = JSON.parse(await fs.readFile(folderOutput, 'utf8'));
@@ -103,7 +114,8 @@ describe('E2E Pipeline', () => {
     
     execSync(`npx tsx src/cli.ts ${oaiFile} -k 2 -o ${oaiOutput}`, {
       cwd,
-      stdio: 'pipe'
+      stdio: 'pipe',
+      env: { ...process.env, OPENROUTER_API_KEY: '' },
     });
 
     const output = JSON.parse(await fs.readFile(oaiOutput, 'utf8'));
@@ -111,5 +123,34 @@ describe('E2E Pipeline', () => {
     // Should have processed all items (only assistant content extracted)
     const totalItems = output.clusters.reduce((sum: number, c: { size: number }) => sum + c.size, 0);
     expect(totalItems).toBe(3);
+  });
+
+  it('writes clusters only and refuses quality rating for the adversarial offline fixture', async () => {
+    const cwd = path.resolve(import.meta.dirname, '..');
+    const fixture = path.join(cwd, 'test/fixtures/offline-adversarial-refusal.jsonl');
+    const outDir = path.join(tempDir, 'offline-adversarial-out');
+
+    const result = spawnSync(
+      'npx',
+      ['tsx', 'src/cli.ts', fixture, '--no-llm', '-k', '2', '--samples', '4', '-d', outDir],
+      {
+        cwd,
+        encoding: 'utf8',
+        env: { ...process.env, OPENROUTER_API_KEY: '' },
+      }
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain('quality rating requires a judge — set OPENROUTER_API_KEY or pass --classify-llm');
+    expect(result.stdout).toContain('no high/low split');
+
+    const clustersPath = path.join(outDir, 'clusters.json');
+    const output = JSON.parse(await fs.readFile(clustersPath, 'utf8'));
+    expect(output.clusters).toHaveLength(2);
+    expect(output.clusters.every((cluster: Record<string, unknown>) => typeof cluster.tag === 'string')).toBe(true);
+    expect(output.clusters.every((cluster: Record<string, unknown>) => !('rating' in cluster))).toBe(true);
+
+    expect(await exists(path.join(outDir, 'high.jsonl'))).toBe(false);
+    expect(await exists(path.join(outDir, 'low.jsonl'))).toBe(false);
   });
 }, { timeout: 120000 }); // Allow time for model loading

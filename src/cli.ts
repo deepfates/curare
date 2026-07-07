@@ -25,6 +25,15 @@ interface CLIOptions {
   verbose: boolean;
 }
 
+interface ClusterOutput {
+  id: number;
+  size: number;
+  tag: string;
+  rating?: 'high' | 'low';
+  items: string[];
+  samples: string[];
+}
+
 function parseArgs(argv: string[]): CLIOptions {
   const args = argv.slice(2);
   const opts: CLIOptions = {
@@ -77,8 +86,8 @@ Usage:
   curare <input> [options]
 
 Examples:
-  curare data.jsonl                     # Cluster and split by quality
-  curare data.jsonl --no-llm            # Fast heuristic classification
+  curare data.jsonl                     # Cluster and split by quality when API key is set
+  curare data.jsonl --no-llm            # Offline clusters-only output
   curare data.jsonl -o clusters.json    # Single-file output (no splits)
   curare ./texts/ -d out/               # Cluster folder of .md/.txt files
 
@@ -87,12 +96,13 @@ Input:
                         Auto-detects: Alpaca, ShareGPT, OAI, Splice, raw text
 
 Output (default: curare-out/):
-  -d, --out-dir <dir>   Output directory (writes clusters.json, high.jsonl, low.jsonl)
+  -d, --out-dir <dir>   Output directory (LLM writes clusters.json, high.jsonl, low.jsonl;
+                        offline writes clusters.json only)
   -o, --out <file>      Single output file (disables multi-file mode)
 
 Classification:
   --classify-llm        Force LLM classification (auto if OPENROUTER_API_KEY set)
-  --no-llm              Force heuristic classification (fast, offline)
+  --no-llm              Disable LLM quality rating (offline clusters-only mode)
   --model <name>        OpenRouter model (default: google/gemini-3-flash-preview)
   --quality-prompt-file <path>  Custom prompt from file
   -s, --samples <n>     Samples per cluster (default: 10)
@@ -113,7 +123,7 @@ function printConciseHelp() {
 Usage: curare <input> [options]
 
 Example:
-  curare data.jsonl              # Cluster and split by quality → curare-out/
+  curare data.jsonl              # Cluster; split by quality when API key is set → curare-out/
 
 Run 'curare --help' for all options.
 `);
@@ -130,8 +140,12 @@ async function main() {
   // Auto-enable LLM classification if API key is present (unless explicitly disabled)
   const hasApiKey = !!process.env.OPENROUTER_API_KEY;
   const useLlm = opts.classifyLlm ?? hasApiKey;
+  const offlineMode = !useLlm;
 
   const log = opts.verbose ? console.error.bind(console) : () => {};
+  if (offlineMode) {
+    console.error('quality rating requires a judge — set OPENROUTER_API_KEY or pass --classify-llm');
+  }
 
   // Load input with auto-detection
   log(`Loading ${opts.input}...`);
@@ -177,34 +191,48 @@ async function main() {
     clusterGroups.get(c)!.push(i);
   }
 
-  // Classify each cluster (parallel for LLM, sequential for heuristic)
-  log(`Classifying clusters (${useLlm ? 'LLM' : 'heuristic'})...`);
+  // Classify each cluster with an LLM, or generate tags only in offline mode.
+  log(`${useLlm ? 'Classifying' : 'Tagging'} clusters (${useLlm ? 'LLM' : 'offline'})...`);
   const loadedPrompt = opts.promptFile
     ? await fs.readFile(opts.promptFile, 'utf8')
     : undefined;
 
   const clusterEntries = [...clusterGroups.entries()];
   
-  const classifyOne = async ([clusterId, indices]: [number, number[]]) => {
+  const classifyOne = async ([clusterId, indices]: [number, number[]]): Promise<ClusterOutput> => {
     // Typicality sampling: get N items nearest to the cluster centroid
     const sampleIndices = getNearestToCentroid(indices, embeddings, centroids[clusterId], opts.samples);
     const samples = sampleIndices.map(i => items[i].text);
 
-    const classification = useLlm
-      ? await classifyWithLLM(samples, { prompt: loadedPrompt, model: opts.model, verbose: opts.verbose })
-      : classifyHeuristic(samples);
-
-    return {
+    const base = {
       id: clusterId,
       size: indices.length,
-      tag: classification.tag,
-      rating: classification.rating,
       items: indices.map(i => items[i].id),
       samples: samples.slice(0, 3),
     };
+
+    if (!useLlm) {
+      const tagged = classifyHeuristic(samples);
+      return {
+        ...base,
+        tag: tagged.tag,
+      };
+    }
+
+    const classification = await classifyWithLLM(samples, {
+      prompt: loadedPrompt,
+      model: opts.model,
+      verbose: opts.verbose,
+    });
+
+    return {
+      ...base,
+      tag: classification.tag,
+      rating: classification.rating,
+    };
   };
 
-  // Parallel classification for LLM, sequential for heuristic (already fast)
+  // LLM judgments are remote; offline tagging is local but uses the same cluster flow.
   const results = useLlm
     ? await Promise.all(clusterEntries.map(classifyOne))
     : await Promise.all(clusterEntries.map(classifyOne));
@@ -223,6 +251,13 @@ async function main() {
     
     // Write metadata
     await fs.writeFile(path.join(opts.outDir, 'clusters.json'), JSON.stringify(output, null, 2));
+
+    if (!useLlm) {
+      console.log(`Wrote to ${opts.outDir}/:`);
+      console.log(`  clusters.json (${sortedResults.length} clusters)`);
+      console.log('  no high/low split: quality rating requires a judge');
+      return;
+    }
     
     // Collect items by rating - preserve original format when available
     const highItems: string[] = [];
@@ -242,7 +277,7 @@ async function main() {
         lowItems.push(...clusterItems);
       }
     }
-    
+
     // Check if input was a folder (adapter === 'folder')
     const isFolder = adapter === 'folder';
     

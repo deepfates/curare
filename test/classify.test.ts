@@ -6,24 +6,15 @@ import { describe, it, expect } from 'vitest';
 import { classifyHeuristic } from '../src/classify/heuristic.js';
 
 describe('classifyHeuristic', () => {
-  it('returns empty/low for empty input', () => {
+  it('returns empty tag for empty input', () => {
     const result = classifyHeuristic([]);
     expect(result.tag).toBe('empty');
-    expect(result.rating).toBe('low');
+    expect(result).not.toHaveProperty('rating');
   });
 
-  it('rates short content as low', () => {
+  it('does not rate short content', () => {
     const result = classifyHeuristic(['hi', 'hello', 'ok']);
-    expect(result.rating).toBe('low');
-  });
-
-  it('rates diverse substantive content as high', () => {
-    const result = classifyHeuristic([
-      'This is a comprehensive analysis of machine learning algorithms and their applications in modern software engineering practices.',
-      'Understanding the fundamental principles of distributed systems requires deep knowledge of networking protocols and consensus mechanisms.',
-      'The intersection of cognitive science and artificial intelligence reveals fascinating insights about human reasoning and computational thinking.',
-    ]);
-    expect(result.rating).toBe('high');
+    expect(result).not.toHaveProperty('rating');
   });
 
   it('generates tag from common words', () => {

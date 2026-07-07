@@ -16,5 +16,5 @@ export { EmbeddingCache } from './io/cache.js';
 export { clusterEmbeddings, findOptimalK, getNearestToCentroid, type ClusterResult } from './cluster/kmeans.js';
 
 // Classification
-export { classifyHeuristic, type ClusterClassification } from './classify/heuristic.js';
+export { classifyHeuristic, type ClusterClassification, type ClusterTag } from './classify/heuristic.js';
 export { classifyWithLLM } from './classify/llm.js';

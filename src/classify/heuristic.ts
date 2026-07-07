@@ -1,32 +1,68 @@
 /**
- * Curare — Cluster classification (heuristic)
+ * Curare — Offline cluster tagging
  */
 
 export interface ClusterClassification {
   tag: string;
   rating: 'high' | 'low';
 }
+export interface ClusterTag {
+  tag: string;
+}
 
-/**
- * Classify a cluster using simple heuristics:
- * - Word diversity (unique words / total words)
- * - Average text length
- * - Vocabulary sophistication (long words ratio)
- */
-export function classifyHeuristic(samples: string[]): ClusterClassification {
-  if (samples.length === 0) {
-    return { tag: 'empty', rating: 'low' };
+function wordsFor(text: string): string[] {
+  return text.toLowerCase().match(/[a-z0-9]+(?:'[a-z0-9]+)?/g) ?? [];
+}
+
+function normalizeSample(text: string): string {
+  return wordsFor(text).join(' ');
+}
+
+function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 && b.size === 0) return 1;
+
+  let intersection = 0;
+  for (const word of a) {
+    if (b.has(word)) intersection++;
   }
 
-  const allText = samples.join(' ');
-  const words = allText.toLowerCase().split(/\s+/).filter(w => w.length > 0);
-  const uniqueWords = new Set(words);
-  
-  // Metrics
-  const diversity = words.length > 0 ? uniqueWords.size / words.length : 0;
-  const avgLength = samples.reduce((s, t) => s + t.length, 0) / samples.length;
-  const longWords = words.filter(w => w.length > 6).length;
-  const sophistication = words.length > 0 ? longWords / words.length : 0;
+  return intersection / (a.size + b.size - intersection);
+}
+
+function dedupeSamples(samples: string[]): string[] {
+  const kept: Array<{ text: string; normalized: string; wordSet: Set<string> }> = [];
+
+  for (const text of samples) {
+    const normalized = normalizeSample(text);
+    if (!normalized) continue;
+
+    const wordSet = new Set(normalized.split(' '));
+    const isDuplicate = kept.some(sample =>
+      sample.normalized === normalized || jaccardSimilarity(sample.wordSet, wordSet) >= 0.9
+    );
+
+    if (!isDuplicate) {
+      kept.push({ text, normalized, wordSet });
+    }
+  }
+
+  return kept.map(sample => sample.text);
+}
+
+function getTagWords(samples: string[]): string[] {
+  const deduped = dedupeSamples(samples);
+  return deduped.flatMap(wordsFor);
+}
+
+/**
+ * Generate a rough cluster tag without attempting a quality judgment.
+ */
+export function classifyHeuristic(samples: string[]): ClusterTag {
+  if (samples.length === 0) {
+    return { tag: 'empty' };
+  }
+
+  const words = getTagWords(samples);
 
   // Generate tag from most common long words
   const wordCounts = new Map<string, number>();
@@ -42,14 +78,5 @@ export function classifyHeuristic(samples: string[]): ClusterClassification {
   
   const tag = topWords.length > 0 ? topWords.join('_') : 'misc';
 
-  // Rating based on quality signals
-  const isHighQuality = 
-    diversity > 0.3 &&      // Not too repetitive
-    avgLength > 100 &&      // Substantive content
-    sophistication > 0.15;  // Some vocabulary depth
-
-  return {
-    tag,
-    rating: isHighQuality ? 'high' : 'low',
-  };
+  return { tag };
 }
