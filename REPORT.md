@@ -1,42 +1,61 @@
-# dee-cura Report
+# dee-zv40 Report
 
-Branch: `heuristic-honesty`
+Branch: `judgments-as-lore`
 
-## Decision
+## What changed
 
-Offline mode is now clusters-only. It writes cluster tags because the tag extractor is useful for inspection, but it does not assign `high` or `low` quality ratings and does not write split outputs.
+- Added lore judgment event serialization in `src/lore.ts`.
+- The LLM classifier now returns the resolved model id as `basis`.
+- The CLI LLM split-output path writes `<basename(input)>.judgments.lore` beside `clusters.json`, `high.jsonl`/`low.jsonl`, or `high/`/`low/`.
+- Each lore event is `kind: "curare/judgment"` with:
+  - `parents`: cluster item ids
+  - `payload`: `{ rating, tag, basis }`
+  - `author`: `{ actor: model id, via: curare@0.1.0, operator: deepfates }`
+- Added tests for UUIDv7 minting, digest splicing, judgment event shape, and LLM `basis` propagation.
 
-Reasoning: the adversarial dataset in `VERDICT.md` shows that lexical quality heuristics reward long noun salad and penalize concise technical substance. That is not a tuning bug; it is a category error. Quality rating requires a judge, so Curare now says exactly that when `--no-llm` is passed or `OPENROUTER_API_KEY` is missing:
+## Reproduce commands
 
-```text
-quality rating requires a judge — set OPENROUTER_API_KEY or pass --classify-llm
+Build:
+
+```bash
+npm run build
 ```
 
-I deleted the offline rating heuristic rather than hiding it behind `--unsafe-heuristic`. Keeping a knowingly bad rating path would preserve the same false promise under a different flag, and the LLM path does not need a heuristic fallback.
-
-## Fix
-
-- Removed offline high/low rating logic from `classifyHeuristic`; it now returns only `{ tag }`.
-- Kept LLM classification unchanged for judge-backed `{ tag, rating }` results.
-- Changed offline directory output to write only `clusters.json`.
-- Suppressed `high.jsonl`, `low.jsonl`, `high/`, and `low/` in offline mode.
-- Removed `rating` fields from offline `clusters.json`.
-- Updated CLI help and README to describe clusters-only offline mode.
-- Added `test/fixtures/offline-adversarial-refusal.jsonl` from `VERDICT.md`.
-- Updated tests to assert offline refusal, clusters-only output, and no split files.
-
-## Verification
-
-Run:
+Tests:
 
 ```bash
 npm test -- --run
 ```
 
-Expected behavior for offline mode:
+Note: the first sandboxed test run failed because `tsx` could not open its IPC pipe:
+`listen EPERM .../tsx-501/...pipe`. Rerunning the same command outside the sandbox passed.
+
+Lore verifier sample:
 
 ```bash
-OPENROUTER_API_KEY= npx tsx src/cli.ts test/fixtures/offline-adversarial-refusal.jsonl --no-llm -k 2 -d /tmp/curare-offline-regression
+node -e "import('./dist/lore.js').then(({serializeJudgmentLore})=>import('node:fs/promises').then(fs=>fs.writeFile('/tmp/curare-judgments-sample.lore', serializeJudgmentLore([{rating:'high',tag:'good',basis:'model/a',parents:['item-1','item-2']},{rating:'low',tag:'thin',basis:'model/a',parents:['item-3']}]))))"
+python3 ../portfolio-audit-20260701/lore-tools/verify.py /tmp/curare-judgments-sample.lore
 ```
 
-The command writes `/tmp/curare-offline-regression/clusters.json`, prints the judge-required message, and does not create `high.jsonl` or `low.jsonl`.
+Verifier result:
+
+```text
+/tmp/curare-judgments-sample.lore: lines=2 digests_ok=2 ids_unique=True
+  classes={'accepted': 2}
+  kinds={'curare/judgment': 2}
+```
+
+Whitespace check:
+
+```bash
+git diff --check
+```
+
+## Uncertainty
+
+- The ticket says `<input>.judgments.lore`; I interpreted this as `path.basename(input) + ".judgments.lore"` written into the output directory beside the split files.
+- `parents` are Curare input item ids because the ticket says item ids where available. They are not guaranteed to be lore event ids for non-lore inputs.
+
+## Filed tickets
+
+None.

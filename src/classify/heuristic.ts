@@ -5,6 +5,7 @@
 export interface ClusterClassification {
   tag: string;
   rating: 'high' | 'low';
+  basis?: string;
 }
 export interface ClusterTag {
   tag: string;

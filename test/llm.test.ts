@@ -34,6 +34,7 @@ describe('classifyWithLLM', () => {
     
     expect(result.tag).toBe('philosophical inquiry');
     expect(result.rating).toBe('high');
+    expect(result.basis).toBe('google/gemini-3-flash-preview');
   });
 
   it('defaults to "unknown" for missing tag', async () => {
@@ -95,6 +96,7 @@ describe('classifyWithLLM', () => {
     
     expect(result.tag).toBe('api_error');
     expect(result.rating).toBe('low');
+    expect(result.basis).toBe('google/gemini-3-flash-preview');
   });
 
   it('throws on HTTP error', async () => {
@@ -130,10 +132,11 @@ describe('classifyWithLLM', () => {
       })
     });
 
-    await classifyWithLLM(['sample'], { model: 'custom/model' });
+    const result = await classifyWithLLM(['sample'], { model: 'custom/model' });
 
     const callBody = JSON.parse(mockFetch.mock.calls[0][1].body);
     expect(callBody.model).toBe('custom/model');
+    expect(result.basis).toBe('custom/model');
   });
 
   it('sends samples numbered in the user message', async () => {

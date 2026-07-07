@@ -12,6 +12,7 @@ import { getTextEmbeddings } from './embed/text.js';
 import { clusterEmbeddings, findOptimalK, getNearestToCentroid } from './cluster/kmeans.js';
 import { classifyHeuristic } from './classify/heuristic.js';
 import { classifyWithLLM } from './classify/llm.js';
+import { serializeJudgmentLore } from './lore.js';
 
 interface CLIOptions {
   input: string;
@@ -30,6 +31,7 @@ interface ClusterOutput {
   size: number;
   tag: string;
   rating?: 'high' | 'low';
+  basis?: string;
   items: string[];
   samples: string[];
 }
@@ -229,6 +231,7 @@ async function main() {
       ...base,
       tag: classification.tag,
       rating: classification.rating,
+      basis: classification.basis,
     };
   };
 
@@ -258,7 +261,16 @@ async function main() {
       console.log('  no high/low split: quality rating requires a judge');
       return;
     }
-    
+
+    const judgmentPath = path.join(opts.outDir, `${path.basename(opts.input)}.judgments.lore`);
+    const judgments = sortedResults.map(cluster => ({
+      rating: cluster.rating!,
+      tag: cluster.tag,
+      basis: cluster.basis!,
+      parents: cluster.items,
+    }));
+    await fs.writeFile(judgmentPath, serializeJudgmentLore(judgments), 'utf8');
+
     // Collect items by rating - preserve original format when available
     const highItems: string[] = [];
     const lowItems: string[] = [];
@@ -302,6 +314,7 @@ async function main() {
       
       console.log(`Wrote to ${opts.outDir}/:`)
       console.log(`  clusters.json (${sortedResults.length} clusters)`);
+      console.log(`  ${path.basename(judgmentPath)} (${judgments.length} judgments)`);
       console.log(`  high/ (${highCount} files)`);
       console.log(`  low/ (${lowCount} files)`);
     } else {
@@ -311,6 +324,7 @@ async function main() {
       
       console.log(`Wrote to ${opts.outDir}/:`)
       console.log(`  clusters.json (${sortedResults.length} clusters)`);
+      console.log(`  ${path.basename(judgmentPath)} (${judgments.length} judgments)`);
       console.log(`  high.jsonl (${highItems.length} items)`);
       console.log(`  low.jsonl (${lowItems.length} items)`);
     }
