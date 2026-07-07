@@ -62,16 +62,22 @@ export async function classifyWithLLM(
   }
 
   const json = await response.json() as {
+    model?: string;
     choices: Array<{ message: { content: string } }>;
     error?: { message: string };
   };
+  const responseModel = typeof json.model === 'string' && json.model.length > 0
+    ? json.model
+    : undefined;
+  const basis = responseModel ?? model;
+  const modelSource = responseModel ? 'response' : 'request';
   
   if (options.verbose) console.error('LLM response:', JSON.stringify(json, null, 2));
   
   // Check for API error in response body
   if (json.error) {
     if (options.verbose) console.error('API error:', json.error.message);
-    return { tag: 'api_error', rating: 'low', basis: model };
+    return { tag: 'api_error', rating: 'low', basis, modelSource };
   }
   
   const text = json.choices?.[0]?.message?.content ?? '{}';
@@ -81,10 +87,11 @@ export async function classifyWithLLM(
     return {
       tag: parsed.tag ?? 'unknown',
       rating: parsed.rating === 'high' ? 'high' : 'low',
-      basis: model,
+      basis,
+      modelSource,
     };
   } catch {
     if (options.verbose) console.error('Parse error, raw text:', text);
-    return { tag: 'parse_error', rating: 'low', basis: model };
+    return { tag: 'parse_error', rating: 'low', basis, modelSource };
   }
 }

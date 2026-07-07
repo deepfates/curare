@@ -11,6 +11,7 @@ export interface CurareJudgment {
   rating: 'high' | 'low';
   tag: string;
   basis: string;
+  modelSource: 'response' | 'request';
   parents: string[];
 }
 
@@ -29,6 +30,7 @@ export interface LoreEvent {
     rating: 'high' | 'low';
     tag: string;
     basis: string;
+    model_source: 'response' | 'request';
   };
 }
 
@@ -81,6 +83,7 @@ export function createJudgmentEvent(
       rating: judgment.rating,
       tag: judgment.tag,
       basis: judgment.basis,
+      model_source: judgment.modelSource,
     },
   };
 }

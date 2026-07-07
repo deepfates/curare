@@ -5,13 +5,14 @@ Branch: `judgments-as-lore`
 ## What changed
 
 - Added lore judgment event serialization in `src/lore.ts`.
-- The LLM classifier now returns the resolved model id as `basis`.
+- The LLM classifier now returns the provider response model id as `basis` when OpenRouter includes one.
+- When the provider response has no model id, the classifier falls back to the requested model id and flags that with `modelSource: "request"`.
 - The CLI LLM split-output path writes `<basename(input)>.judgments.lore` beside `clusters.json`, `high.jsonl`/`low.jsonl`, or `high/`/`low/`.
 - Each lore event is `kind: "curare/judgment"` with:
   - `parents`: cluster item ids
-  - `payload`: `{ rating, tag, basis }`
+  - `payload`: `{ rating, tag, basis, model_source }`
   - `author`: `{ actor: model id, via: curare@0.1.0, operator: deepfates }`
-- Added tests for UUIDv7 minting, digest splicing, judgment event shape, and LLM `basis` propagation.
+- Added tests for UUIDv7 minting, digest splicing, judgment event shape, LLM response-model `basis` propagation, and request-model fallback provenance.
 
 ## Reproduce commands
 
@@ -33,7 +34,7 @@ Note: the first sandboxed test run failed because `tsx` could not open its IPC p
 Lore verifier sample:
 
 ```bash
-node -e "import('./dist/lore.js').then(({serializeJudgmentLore})=>import('node:fs/promises').then(fs=>fs.writeFile('/tmp/curare-judgments-sample.lore', serializeJudgmentLore([{rating:'high',tag:'good',basis:'model/a',parents:['item-1','item-2']},{rating:'low',tag:'thin',basis:'model/a',parents:['item-3']}]))))"
+node -e "import('./dist/lore.js').then(({serializeJudgmentLore})=>import('node:fs/promises').then(fs=>fs.writeFile('/tmp/curare-judgments-sample.lore', serializeJudgmentLore([{rating:'high',tag:'good',basis:'provider/model-a',modelSource:'response',parents:['item-1','item-2']},{rating:'low',tag:'thin',basis:'requested/model-b',modelSource:'request',parents:['item-3']}]))))"
 python3 ../portfolio-audit-20260701/lore-tools/verify.py /tmp/curare-judgments-sample.lore
 ```
 

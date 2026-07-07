@@ -32,6 +32,7 @@ interface ClusterOutput {
   tag: string;
   rating?: 'high' | 'low';
   basis?: string;
+  modelSource?: 'response' | 'request';
   items: string[];
   samples: string[];
 }
@@ -232,6 +233,7 @@ async function main() {
       tag: classification.tag,
       rating: classification.rating,
       basis: classification.basis,
+      modelSource: classification.modelSource,
     };
   };
 
@@ -267,6 +269,7 @@ async function main() {
       rating: cluster.rating!,
       tag: cluster.tag,
       basis: cluster.basis!,
+      modelSource: cluster.modelSource!,
       parents: cluster.items,
     }));
     await fs.writeFile(judgmentPath, serializeJudgmentLore(judgments), 'utf8');

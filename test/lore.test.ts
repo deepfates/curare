@@ -39,6 +39,7 @@ describe('lore judgment events', () => {
         rating: 'high',
         tag: 'philosophical_inquiry',
         basis: 'openrouter/test-model',
+        modelSource: 'response',
         parents: ['item-1', 'item-2'],
       },
       {
@@ -68,6 +69,7 @@ describe('lore judgment events', () => {
         rating: 'high',
         tag: 'philosophical_inquiry',
         basis: 'openrouter/test-model',
+        model_source: 'response',
       },
     });
     expect(parsed).not.toHaveProperty('digest');
@@ -76,8 +78,8 @@ describe('lore judgment events', () => {
   it('writes one lore line per cluster judgment', () => {
     const lore = serializeJudgmentLore(
       [
-        { rating: 'high', tag: 'good', basis: 'model/a', parents: ['a'] },
-        { rating: 'low', tag: 'thin', basis: 'model/a', parents: ['b', 'c'] },
+        { rating: 'high', tag: 'good', basis: 'model/a', modelSource: 'response', parents: ['a'] },
+        { rating: 'low', tag: 'thin', basis: 'model/a', modelSource: 'response', parents: ['b', 'c'] },
       ],
       new Date('2026-07-06T04:12:31.000Z')
     );

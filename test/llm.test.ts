@@ -35,6 +35,7 @@ describe('classifyWithLLM', () => {
     expect(result.tag).toBe('philosophical inquiry');
     expect(result.rating).toBe('high');
     expect(result.basis).toBe('google/gemini-3-flash-preview');
+    expect(result.modelSource).toBe('request');
   });
 
   it('defaults to "unknown" for missing tag', async () => {
@@ -97,6 +98,7 @@ describe('classifyWithLLM', () => {
     expect(result.tag).toBe('api_error');
     expect(result.rating).toBe('low');
     expect(result.basis).toBe('google/gemini-3-flash-preview');
+    expect(result.modelSource).toBe('request');
   });
 
   it('throws on HTTP error', async () => {
@@ -124,7 +126,24 @@ describe('classifyWithLLM', () => {
     expect(callBody.messages[0].content).toBe('Custom prompt here');
   });
 
-  it('uses custom model when provided', async () => {
+  it('requests the custom model and records response model provenance when provided', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        model: 'provider/actual-model',
+        choices: [{ message: { content: '{"tag": "test", "rating": "high"}' } }]
+      })
+    });
+
+    const result = await classifyWithLLM(['sample'], { model: 'custom/model' });
+
+    const callBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(callBody.model).toBe('custom/model');
+    expect(result.basis).toBe('provider/actual-model');
+    expect(result.modelSource).toBe('response');
+  });
+
+  it('falls back to requested model provenance when response omits model', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
@@ -134,9 +153,8 @@ describe('classifyWithLLM', () => {
 
     const result = await classifyWithLLM(['sample'], { model: 'custom/model' });
 
-    const callBody = JSON.parse(mockFetch.mock.calls[0][1].body);
-    expect(callBody.model).toBe('custom/model');
     expect(result.basis).toBe('custom/model');
+    expect(result.modelSource).toBe('request');
   });
 
   it('sends samples numbered in the user message', async () => {
