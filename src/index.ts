@@ -18,3 +18,11 @@ export { clusterEmbeddings, findOptimalK, getNearestToCentroid, type ClusterResu
 // Classification
 export { classifyHeuristic, type ClusterClassification, type ClusterTag } from './classify/heuristic.js';
 export { classifyWithLLM } from './classify/llm.js';
+
+export {
+  createClusterAnnotation,
+  serializeClusterAnnotations,
+  serializeLyncEvent,
+  type CurareClusterAnnotation,
+  type LyncAnnotationEvent,
+} from './lync.js';

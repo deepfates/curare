@@ -5,6 +5,49 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { registerAdapter, type InputItem } from './adapters.js';
+import { parseLyncFiles } from '@deepfates/lync/events';
+
+/** Raw Lync event log. Event ids are the source of truth and are never reminted. */
+registerAdapter({
+  name: 'lync',
+  async detect(input: string, firstLine?: string) {
+    if (path.extname(input).toLowerCase() === '.lync') return true;
+    if (!firstLine) return false;
+    try {
+      const obj = JSON.parse(firstLine);
+      return obj?.v === 1 && typeof obj.id === 'string' && Array.isArray(obj.parents)
+        && typeof obj.kind === 'string' && typeof obj.digest === 'string';
+    } catch { return false; }
+  },
+  async *load(input: string): AsyncIterable<InputItem> {
+    const bytes = await fs.readFile(input);
+    const result = parseLyncFiles([{ file: path.basename(input), bytes }]);
+    const rejected = result.lines.filter(line =>
+      line.class === 'garbage' || line.class === 'damaged' || line.class === 'conflict-variant'
+    );
+    if (rejected.length > 0 || result.conflictIds.length > 0) {
+      const detail = rejected.map(line => `${line.line}:${line.class}:${line.reason}`).join(', ');
+      throw new Error(`Refusing damaged or conflicted .lync input${detail ? ` (${detail})` : ''}`);
+    }
+
+    const eligible = new Set(result.viewEligibleIds);
+    const seen = new Set<string>();
+    for (const line of result.lines) {
+      const event = line.event;
+      if (!event || !line.id || !eligible.has(line.id) || seen.has(line.id)) continue;
+      seen.add(line.id);
+      if (event.kind === 'lync/annotation' || event.kind === 'lync/tombstone' || event.critical) continue;
+      const text = event.payload.text;
+      if (typeof text !== 'string' || text.length === 0) continue;
+      yield {
+        id: event.id,
+        text,
+        sourceAt: event.at,
+        originalLine: new TextDecoder().decode(line.bytes).replace(/\n$/, ''),
+      };
+    }
+  },
+});
 
 /** Alpaca format: {instruction, input?, output} */
 registerAdapter({

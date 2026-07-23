@@ -17,17 +17,24 @@ cd curare && npm install
 npx tsx src/cli.ts data.jsonl              # → curare-out/high.jsonl, low.jsonl when OPENROUTER_API_KEY is set
 npx tsx src/cli.ts data.jsonl --no-llm     # Offline clusters-only output
 npx tsx src/cli.ts ./texts/ -d out/        # Folder of .md/.txt files
+npx tsx src/cli.ts corpus.lync --no-llm -d out/ # Preserve raw ids; write cluster annotations
 ```
 
 Curare auto-detects your format and clusters semantically. Quality rating requires an LLM judge: set `OPENROUTER_API_KEY` or pass `--classify-llm`.
 
 ## How It Works
 
-1. **Load** — Auto-detects format (Alpaca, ShareGPT, OAI, Splice, raw text, folders)
+1. **Load** — Auto-detects format (raw `.lync`, Alpaca, ShareGPT, OAI, Splice, raw text, folders)
 2. **Embed** — Local embeddings via transformers.js (cached)
 3. **Cluster** — K-means with elbow method for optimal k
 4. **Tag** — Offline mode emits cluster tags for inspection
 5. **Rate/Split** — LLM mode classifies high/low quality and outputs `high.jsonl` and `low.jsonl` preserving original format
+
+For raw `.lync` input, Curare treats event ids as authoritative. It ignores
+annotation/tombstone records as cluster material and writes a separate
+`<input>.annotations.lync` whose standard `lync/annotation` events point back to
+the exact source ids. The source log is never rewritten and no Loom snapshot is
+created.
 
 ## Options
 

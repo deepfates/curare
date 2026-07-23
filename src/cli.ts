@@ -13,6 +13,7 @@ import { clusterEmbeddings, findOptimalK, getNearestToCentroid } from './cluster
 import { classifyHeuristic } from './classify/heuristic.js';
 import { classifyWithLLM } from './classify/llm.js';
 import { serializeJudgmentLore } from './lore.js';
+import { serializeClusterAnnotations } from './lync.js';
 
 interface CLIOptions {
   input: string;
@@ -264,14 +265,40 @@ async function main() {
     // Write metadata
     await fs.writeFile(path.join(opts.outDir, 'clusters.json'), JSON.stringify(output, null, 2));
 
+    let annotationPath: string | undefined;
+    if (adapter === 'lync') {
+      const itemById = new Map(items.map(item => [item.id, item]));
+      const annotations = sortedResults.map(cluster => {
+        const sourceTimes = cluster.items.map(id => itemById.get(id)?.sourceAt);
+        if (sourceTimes.some(at => at === undefined)) {
+          throw new Error('Lync cluster target is missing its source timestamp');
+        }
+        return {
+          clusterId: cluster.id,
+          tag: cluster.tag,
+          parents: cluster.items,
+          at: (sourceTimes as string[]).sort().at(-1)!,
+          size: cluster.size,
+          rating: cluster.rating,
+          basis: cluster.basis,
+          modelSource: cluster.modelSource,
+        };
+      });
+      annotationPath = path.join(opts.outDir, `${path.basename(opts.input)}.annotations.lync`);
+      await fs.writeFile(annotationPath, serializeClusterAnnotations(annotations), 'utf8');
+    }
+
     if (!useLlm) {
       console.log(`Wrote to ${opts.outDir}/:`);
       console.log(`  clusters.json (${sortedResults.length} clusters)`);
+      if (annotationPath) console.log(`  ${path.basename(annotationPath)} (${sortedResults.length} annotations)`);
       console.log('  no high/low split: quality rating requires a judge');
       return;
     }
 
-    const judgmentPath = path.join(opts.outDir, `${path.basename(opts.input)}.judgments.lore`);
+    const judgmentPath = adapter === 'lync'
+      ? annotationPath!
+      : path.join(opts.outDir, `${path.basename(opts.input)}.judgments.lore`);
     const judgments = sortedResults.map(cluster => ({
       rating: cluster.rating!,
       tag: cluster.tag,
@@ -279,7 +306,9 @@ async function main() {
       modelSource: cluster.modelSource!,
       parents: cluster.items,
     }));
-    await fs.writeFile(judgmentPath, serializeJudgmentLore(judgments), 'utf8');
+    if (adapter !== 'lync') {
+      await fs.writeFile(judgmentPath, serializeJudgmentLore(judgments), 'utf8');
+    }
 
     // Collect items by rating - preserve original format when available
     const highItems: string[] = [];

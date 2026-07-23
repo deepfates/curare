@@ -8,6 +8,12 @@ import '../src/io/builtin.js';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
+import { createHash } from 'node:crypto';
+
+function lyncLine(event: Record<string, unknown>): string {
+  const body = JSON.stringify(event);
+  return `${body.slice(0, -1)},"digest":"sha256:${createHash('sha256').update(body).digest('hex')}"}\n`;
+}
 
 describe('input adapters', () => {
   let tempDir: string;
@@ -26,6 +32,35 @@ describe('input adapters', () => {
     expect(items).toHaveLength(2);
     expect(items[0].text).toBe('hello');
     expect(items[0].originalLine).toBe('{"id":"1","text":"hello"}');
+  });
+
+  it('loads text from raw lync without changing event ids', async () => {
+    const file = path.join(tempDir, 'corpus.lync');
+    const first = {
+      v: 1, id: '019f7000-0000-7000-8000-000000000001', kind: 'corpus/text',
+      at: '2026-07-01T00:00:00.000Z', author: { actor: 'alice' }, parents: [],
+      payload: { text: 'hello from the raw event' },
+    };
+    const annotation = {
+      v: 1, id: '019f7000-0000-7000-8000-000000000002', kind: 'lync/annotation',
+      at: '2026-07-01T00:00:01.000Z', author: { actor: 'curator' }, parents: [first.id],
+      payload: { label: 'note', value: 'not cluster material' },
+    };
+    await fs.writeFile(file, lyncLine(first) + lyncLine(annotation));
+
+    const { adapter, items } = await autoLoad(file);
+    expect(adapter).toBe('lync');
+    expect(items).toEqual([expect.objectContaining({
+      id: first.id,
+      text: 'hello from the raw event',
+      sourceAt: first.at,
+    })]);
+  });
+
+  it('refuses a damaged lync line instead of silently dropping it', async () => {
+    const file = path.join(tempDir, 'damaged.lync');
+    await fs.writeFile(file, '{"v":1,"id":"x","kind":"corpus/text","at":"2026-07-01T00:00:00Z","author":{"actor":"a"},"parents":[],"payload":{"text":"x"},"digest":"sha256:deadbeef"}\n');
+    await expect(autoLoad(file)).rejects.toThrow('Refusing damaged or conflicted .lync input');
   });
 
   it('detects alpaca format', async () => {

@@ -5,6 +5,8 @@
 export interface InputItem {
   id: string;
   text: string;
+  /** Source event time when the item came from an append-only event log. */
+  sourceAt?: string;
   /** Original line from input file, for format preservation */
   originalLine?: string;
 }
