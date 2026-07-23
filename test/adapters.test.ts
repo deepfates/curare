@@ -57,6 +57,29 @@ describe('input adapters', () => {
     })]);
   });
 
+  it('loads structured Claude message content without changing the source id', async () => {
+    const file = path.join(tempDir, 'claude.lync');
+    const event = {
+      v: 1, id: '019f7000-0000-7000-8000-000000000003', kind: 'claude/assistant',
+      at: '2026-07-01T00:00:02.000Z', author: { actor: 'claude', via: 'claude-code' }, parents: [],
+      payload: {
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'structured response' }, { type: 'tool_use', name: 'read' }],
+        },
+      },
+    };
+    await fs.writeFile(file, lyncLine(event));
+
+    const { adapter, items } = await autoLoad(file);
+    expect(adapter).toBe('lync');
+    expect(items).toEqual([expect.objectContaining({
+      id: event.id,
+      text: 'structured response',
+      sourceAt: event.at,
+    })]);
+  });
+
   it('refuses a damaged lync line instead of silently dropping it', async () => {
     const file = path.join(tempDir, 'damaged.lync');
     await fs.writeFile(file, '{"v":1,"id":"x","kind":"corpus/text","at":"2026-07-01T00:00:00Z","author":{"actor":"a"},"parents":[],"payload":{"text":"x"},"digest":"sha256:deadbeef"}\n');

@@ -37,8 +37,8 @@ registerAdapter({
       if (!event || !line.id || !eligible.has(line.id) || seen.has(line.id)) continue;
       seen.add(line.id);
       if (event.kind === 'lync/annotation' || event.kind === 'lync/tombstone' || event.critical) continue;
-      const text = event.payload.text;
-      if (typeof text !== 'string' || text.length === 0) continue;
+      const text = lyncPayloadText(event.payload);
+      if (!text) continue;
       yield {
         id: event.id,
         text,
@@ -48,6 +48,27 @@ registerAdapter({
     }
   },
 });
+
+/** Read the two canonical corpus shapes without changing the source event. */
+function lyncPayloadText(payload: Record<string, unknown>): string | null {
+  if (typeof payload.text === 'string' && payload.text.length > 0) return payload.text;
+  if (typeof payload.message === 'string' && payload.message.length > 0) return payload.message;
+  if (!payload.message || typeof payload.message !== 'object') return null;
+  const message = payload.message as { text?: unknown; content?: unknown };
+  if (typeof message.text === 'string' && message.text.length > 0) return message.text;
+  if (typeof message.content === 'string' && message.content.length > 0) return message.content;
+  if (!Array.isArray(message.content)) return null;
+  const text = message.content
+    .map(block => {
+      if (typeof block === 'string') return block;
+      if (!block || typeof block !== 'object') return '';
+      const value = (block as { text?: unknown }).text;
+      return typeof value === 'string' ? value : '';
+    })
+    .filter(Boolean)
+    .join('');
+  return text || null;
+}
 
 /** Alpaca format: {instruction, input?, output} */
 registerAdapter({
