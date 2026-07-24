@@ -2,6 +2,10 @@
 
 > *Precision curation for your data*
 
+> **Status:** source application. This checkout is not the unrelated unscoped
+> `curare` package on npm, and `package.json` is deliberately private until a
+> scoped distribution name and release contract are chosen.
+
 Semantic clustering for training datasets, with optional LLM quality rating. Feed it conversations, inspect clusters, and use a judge-backed high/low split when an LLM is configured.
 
 ## Install

@@ -1,6 +1,7 @@
 {
   "name": "curare",
   "version": "0.1.0",
+  "private": true,
   "description": "Precision curation for your data — semantic clustering for training datasets",
   "type": "module",
   "main": "dist/index.js",
