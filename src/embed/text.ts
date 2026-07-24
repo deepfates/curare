@@ -1,13 +1,14 @@
 /**
- * Curare — Text embeddings via transformers.js
+ * Curare — Local text embeddings via Transformers.js
  */
 
-import { pipeline } from '@xenova/transformers';
+import { pipeline } from '@huggingface/transformers';
 import { EmbeddingCache } from '../io/cache.js';
+import { DEFAULT_EMBED_MODEL } from './model.js';
+
+export { DEFAULT_EMBED_MODEL } from './model.js';
 
 const extractors = new Map<string, any>();
-
-const DEFAULT_MODEL = 'Xenova/all-MiniLM-L6-v2';
 
 export interface EmbedOptions {
   model?: string;
@@ -27,7 +28,7 @@ export async function getTextEmbeddings(
   items: EmbedItem[],
   options: EmbedOptions = {}
 ): Promise<number[][]> {
-  const model = options.model ?? DEFAULT_MODEL;
+  const model = options.model ?? DEFAULT_EMBED_MODEL;
   const cache = options.cache;
 
   let extractor = extractors.get(model);

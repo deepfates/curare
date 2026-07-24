@@ -9,6 +9,8 @@ import { execSync, spawnSync } from 'node:child_process';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
+import { createHash } from 'node:crypto';
+import { parseLyncFiles } from '@deepfates/lync/events';
 
 async function exists(filePath: string): Promise<boolean> {
   try {
@@ -19,7 +21,13 @@ async function exists(filePath: string): Promise<boolean> {
   }
 }
 
-describe('E2E Pipeline', () => {
+function lyncLine(event: Record<string, unknown>): string {
+  const body = JSON.stringify(event);
+  const digest = createHash('sha256').update(body).digest('hex');
+  return `${body.slice(0, -1)},"digest":"sha256:${digest}"}\n`;
+}
+
+describe('E2E Pipeline', { timeout: 120000 }, () => {
   let tempDir: string;
   let inputFile: string;
   let outputFile: string;
@@ -72,6 +80,7 @@ describe('E2E Pipeline', () => {
     const output = JSON.parse(await fs.readFile(outputFile, 'utf8'));
     
     expect(output.k).toBe(2);
+    expect(output.seed).toBe(42);
     expect(output.clusters).toHaveLength(2);
     
     // Each cluster should have items
@@ -108,6 +117,85 @@ describe('E2E Pipeline', () => {
     
     expect(output.clusters).toHaveLength(2);
     expect(output.source).toBe('notes');
+  });
+
+  it('clusters raw Lync without rewriting or losing source ids', async () => {
+    const sourceIds = [
+      '019f7000-0000-7000-8000-000000000011',
+      '019f7000-0000-7000-8000-000000000012',
+      '019f7000-0000-7000-8000-000000000013',
+      '019f7000-0000-7000-8000-000000000014',
+    ];
+    const texts = [
+      'A quiet library contains shelves of old books.',
+      'The reader studies a manuscript in the archive.',
+      'A race car engine roars around the circuit.',
+      'The driver accelerates through the final corner.',
+    ];
+    const raw = sourceIds.map((id, index) => lyncLine({
+      v: 1,
+      id,
+      kind: 'corpus/text',
+      at: `2026-07-01T00:00:0${index}.000Z`,
+      author: { actor: 'fixture' },
+      parents: [],
+      payload: { text: texts[index] },
+    })).join('');
+    const lyncInput = path.join(tempDir, 'corpus.lync');
+    const lyncOut = path.join(tempDir, 'lync-out');
+    await fs.writeFile(lyncInput, raw);
+
+    const result = spawnSync(
+      'npx',
+      ['tsx', 'src/cli.ts', lyncInput, '--no-llm', '-k', '2', '--samples', '2', '-d', lyncOut],
+      {
+        cwd: path.resolve(import.meta.dirname, '..'),
+        encoding: 'utf8',
+        env: { ...process.env, OPENROUTER_API_KEY: '' },
+      }
+    );
+
+    expect(result.status).toBe(0);
+    expect(await fs.readFile(lyncInput, 'utf8')).toBe(raw);
+    const annotationBytes = await fs.readFile(
+      path.join(lyncOut, 'corpus.lync.annotations.lync'),
+      'utf8'
+    );
+    const parsed = parseLyncFiles([
+      { file: 'corpus.lync', bytes: raw },
+      { file: 'corpus.lync.annotations.lync', bytes: annotationBytes },
+    ]);
+    expect(parsed.lines.every(line => line.class === 'accepted')).toBe(true);
+    const targetedIds = parsed.lines
+      .filter(line => line.event?.kind === 'lync/annotation')
+      .flatMap(line => line.event!.parents)
+      .sort();
+    expect(targetedIds).toEqual([...sourceIds].sort());
+  });
+
+  it('replays identical offline input byte-for-byte with a fixed seed', async () => {
+    const firstOutput = path.join(tempDir, 'replay-first.json');
+    const secondOutput = path.join(tempDir, 'replay-second.json');
+    const cwd = path.resolve(import.meta.dirname, '..');
+    const args = (output: string) => [
+      'tsx', 'src/cli.ts', inputFile, '--no-llm', '-k', '2', '--seed', '2026', '-o', output,
+    ];
+
+    const first = spawnSync('npx', args(firstOutput), {
+      cwd,
+      encoding: 'utf8',
+      env: { ...process.env, OPENROUTER_API_KEY: '' },
+    });
+    const second = spawnSync('npx', args(secondOutput), {
+      cwd,
+      encoding: 'utf8',
+      env: { ...process.env, OPENROUTER_API_KEY: '' },
+    });
+
+    expect(first.status).toBe(0);
+    expect(second.status).toBe(0);
+    expect(await fs.readFile(secondOutput, 'utf8')).toBe(await fs.readFile(firstOutput, 'utf8'));
+    expect(JSON.parse(await fs.readFile(firstOutput, 'utf8')).seed).toBe(2026);
   });
 
   it('auto-detects OAI format', async () => {
@@ -164,4 +252,4 @@ describe('E2E Pipeline', () => {
     expect(await exists(path.join(outDir, 'high.jsonl'))).toBe(false);
     expect(await exists(path.join(outDir, 'low.jsonl'))).toBe(false);
   });
-}, { timeout: 120000 }); // Allow time for model loading
+});

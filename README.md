@@ -15,6 +15,10 @@ git clone https://github.com/deepfates/curare
 cd curare && npm install
 ```
 
+Curare supports Node.js 22 or newer. Its local text path uses the maintained
+Hugging Face Transformers.js package with ONNX Runtime; it does not require a
+Python service or a provider key.
+
 ## Usage
 
 ```bash
@@ -29,8 +33,8 @@ Curare auto-detects your format and clusters semantically. Quality rating requir
 ## How It Works
 
 1. **Load** — Auto-detects format (raw `.lync`, Alpaca, ShareGPT, OAI, Splice, raw text, folders)
-2. **Embed** — Local embeddings via transformers.js (cached)
-3. **Cluster** — K-means with elbow method for optimal k
+2. **Embed** — Local embeddings via Hugging Face Transformers.js (cached)
+3. **Cluster** — Seeded K-means with elbow method for optimal k
 4. **Tag** — Offline mode emits cluster tags for inspection
 5. **Rate/Split** — LLM mode classifies high/low quality and outputs `high.jsonl` and `low.jsonl` preserving original format
 
@@ -58,6 +62,7 @@ Classification:
 
 Clustering:
   -k, --clusters <n>    Fixed k (default: auto via elbow)
+  --seed <n>            K-means initialization seed (default: 42)
 
 Other:
   -v, --verbose         Debug output
@@ -69,12 +74,23 @@ Other:
 
 ```bash
 OPENROUTER_API_KEY=...   # Enables LLM classification automatically
-CURARE_EMBED_MODEL=...   # Optional embeddings model (default: Xenova/all-MiniLM-L6-v2)
+CURARE_EMBED_MODEL=...   # Optional model (default: sentence-transformers/all-MiniLM-L6-v2)
 ```
+
+The Transformers.js dependency is pinned to 3.8.1 and Sharp is held at the
+patched 0.35.3 runtime. This keeps the production embedding/image chain clear
+of the advisories present in Curare's former Xenova runtime and in the current
+Transformers.js 4.2 ONNX package. Revisit both pins together rather than
+removing the Sharp override in isolation.
 
 ## Background
 
 Curare implements the clustering methodology from [**"I want to break some laws too"**](https://snats.xyz/pages/articles/breaking_some_laws.html), which builds on the [Minipile paper](https://huggingface.co/datasets/JeanKaddour/minipile). The key finding: careful data curation can match full dataset performance with a fraction of the data.
+
+K-means initialization uses seed `42` by default, and the seed is recorded in
+`clusters.json`. Identical inputs, embedding model/cache contents, options, and
+Curare version therefore produce the same offline cluster projection. Pass
+`--seed <n>` when a different controlled initialization is useful.
 
 **The pipeline:**
 1. Embed the dataset

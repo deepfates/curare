@@ -8,8 +8,13 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { autoLoad } from './io/adapters.js';
 import './io/builtin.js'; // Register built-in adapters
-import { getTextEmbeddings } from './embed/text.js';
-import { clusterEmbeddings, findOptimalK, getNearestToCentroid } from './cluster/kmeans.js';
+import { DEFAULT_EMBED_MODEL, getTextEmbeddings } from './embed/text.js';
+import {
+  DEFAULT_CLUSTER_SEED,
+  clusterEmbeddings,
+  findOptimalK,
+  getNearestToCentroid,
+} from './cluster/kmeans.js';
 import { classifyHeuristic } from './classify/heuristic.js';
 import { classifyWithLLM } from './classify/llm.js';
 import { serializeJudgmentLore } from './lore.js';
@@ -20,6 +25,7 @@ interface CLIOptions {
   out: string;
   outDir?: string;
   k?: number;
+  seed: number;
   samples: number;
   classifyLlm?: boolean;  // undefined = auto-detect from API key
   model?: string;
@@ -46,6 +52,7 @@ function parseArgs(argv: string[]): CLIOptions {
     out: 'clusters.json',
     outDir: 'curare-out',  // Default to multi-file output
     samples: 10,  // Better for typicality sampling
+    seed: DEFAULT_CLUSTER_SEED,
     verbose: false,
     llmConcurrency: 4,
   };
@@ -59,6 +66,8 @@ function parseArgs(argv: string[]): CLIOptions {
       opts.outDir = undefined;  // Single-file mode
     } else if (a === '-k' || a === '--clusters') {
       opts.k = parseInt(args[++i], 10);
+    } else if (a === '--seed') {
+      opts.seed = parseInt(args[++i], 10);
     } else if (a === '--classify-llm') {
       opts.classifyLlm = true;
     } else if (a === '--no-llm') {
@@ -119,6 +128,7 @@ Classification:
 
 Clustering:
   -k, --clusters <n>    Fixed cluster count (default: auto via elbow)
+  --seed <n>            K-means initialization seed (default: ${DEFAULT_CLUSTER_SEED})
 
 Other:
   -v, --verbose         Debug output
@@ -170,7 +180,7 @@ async function main() {
 
   // Initialize cache
   const { EmbeddingCache } = await import('./io/cache.js');
-  const embedModel = process.env.CURARE_EMBED_MODEL ?? 'Xenova/all-MiniLM-L6-v2';
+  const embedModel = process.env.CURARE_EMBED_MODEL ?? DEFAULT_EMBED_MODEL;
   const cache = new EmbeddingCache('.curare', embedModel);
   await cache.load();
 
@@ -191,9 +201,12 @@ async function main() {
   log('Saved embedding cache');
 
   // Cluster
-  const k = opts.k ?? findOptimalK(embeddings);
-  log(`Clustering with k=${k}...`);
-  const { clusters, centroids } = clusterEmbeddings(embeddings, k);
+  if (!Number.isSafeInteger(opts.seed)) {
+    throw new Error('--seed must be a safe integer');
+  }
+  const k = opts.k ?? findOptimalK(embeddings, undefined, opts.seed);
+  log(`Clustering with k=${k}, seed=${opts.seed}...`);
+  const { clusters, centroids } = clusterEmbeddings(embeddings, k, opts.seed);
 
   // Group items by cluster
   const clusterGroups: Map<number, number[]> = new Map();
@@ -256,6 +269,7 @@ async function main() {
   const output = {
     source: path.basename(opts.input),
     k,
+    seed: opts.seed,
     clusters: sortedResults,
   };
 

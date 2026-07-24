@@ -2,7 +2,7 @@
  * Curare — Tests for clustering module
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { clusterEmbeddings, findOptimalK, getNearestToCentroid } from '../src/cluster/kmeans.js';
 
 describe('clusterEmbeddings', () => {
@@ -25,6 +25,31 @@ describe('clusterEmbeddings', () => {
     expect(result.clusters[2]).toBe(result.clusters[3]);
     expect(result.clusters[0]).not.toBe(result.clusters[2]);
   });
+
+  it('repeats the same initialization by default', () => {
+    const embeddings = [
+      [0, 0], [0.2, 0.1], [0.4, 0.3],
+      [4, 4], [4.2, 4.1], [4.4, 4.3],
+      [8, 0], [8.2, 0.1], [8.4, 0.3],
+    ];
+
+    const first = clusterEmbeddings(embeddings, 3);
+    const second = clusterEmbeddings(embeddings, 3);
+
+    expect(second).toEqual(first);
+  });
+
+  it('does not fall back to ambient Math.random', () => {
+    const ambientRandom = vi.spyOn(Math, 'random').mockImplementation(() => {
+      throw new Error('ambient randomness must not be used');
+    });
+
+    try {
+      expect(() => clusterEmbeddings([[0], [1], [9], [10]], 2)).not.toThrow();
+    } finally {
+      ambientRandom.mockRestore();
+    }
+  });
 });
 
 describe('findOptimalK', () => {
@@ -44,6 +69,15 @@ describe('findOptimalK', () => {
     const k = findOptimalK(embeddings, 5);
     expect(k).toBeGreaterThanOrEqual(2);
     expect(k).toBeLessThanOrEqual(4);
+  });
+
+  it('repeats the elbow search with the same seed', () => {
+    const embeddings = Array.from({ length: 24 }, (_, index) => [
+      Math.sin(index) + Math.floor(index / 8) * 5,
+      Math.cos(index * 2),
+    ]);
+
+    expect(findOptimalK(embeddings, 6, 1234)).toBe(findOptimalK(embeddings, 6, 1234));
   });
 });
 

@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const pipelineMock = vi.fn();
-vi.mock('@xenova/transformers', () => ({
+vi.mock('@huggingface/transformers', () => ({
   pipeline: pipelineMock,
 }));
 
@@ -42,5 +42,20 @@ describe('getTextEmbeddings', () => {
 
     expect(extractorByModel.get('model/a')).toHaveBeenCalledTimes(2);
     expect(extractorByModel.get('model/b')).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the canonical local text model by default', async () => {
+    vi.resetModules();
+    pipelineMock.mockResolvedValue(
+      vi.fn(async () => ({ data: Float32Array.from([0.25, 0.75]) }))
+    );
+
+    const { getTextEmbeddings } = await import('../src/embed/text.js');
+    await getTextEmbeddings([{ id: 'default', text: 'hello' }]);
+
+    expect(pipelineMock).toHaveBeenCalledWith(
+      'feature-extraction',
+      'sentence-transformers/all-MiniLM-L6-v2'
+    );
   });
 });
