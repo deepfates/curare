@@ -4,7 +4,8 @@
 
 > **Status:** source application. This checkout is not the unrelated unscoped
 > `curare` package on npm, and `package.json` is deliberately private until a
-> scoped distribution name and release contract are chosen.
+> scoped distribution name and release contract are chosen. Version 0.1.0 is a
+> source checkpoint, not an npm release.
 
 Semantic clustering for training datasets, with optional LLM quality rating. Feed it conversations, inspect clusters, and use a judge-backed high/low split when an LLM is configured.
 
@@ -18,6 +19,11 @@ cd curare && npm install
 Curare supports Node.js 22 or newer. Its local text path uses the maintained
 Hugging Face Transformers.js package with ONNX Runtime; it does not require a
 Python service or a provider key.
+
+Curare supports `@deepfates/lync >=0.3.0 <0.5.0`. Lync 0.3 and the unpublished
+0.4 candidate share the same v1 event envelope and the parser surface Curare
+uses. Until Lync 0.4 is published, a normal lockfile install remains on 0.3;
+the corpus rehearsal exercises the sibling 0.4 source checkout explicitly.
 
 ## Usage
 
