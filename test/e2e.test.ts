@@ -34,6 +34,17 @@ describe('E2E Pipeline', () => {
     await fs.rm(tempDir, { recursive: true });
   });
 
+  it('advertises raw Lync input in CLI help', () => {
+    const result = spawnSync('npx', ['tsx', 'src/cli.ts', '--help'], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('corpus.lync');
+    expect(result.stdout).toContain('Auto-detects: Lync');
+  });
+
   it('processes JSONL through full pipeline in offline clusters-only mode', async () => {
     // Create test input with distinct clusters
     const items = [

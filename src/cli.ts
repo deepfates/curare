@@ -98,10 +98,11 @@ Examples:
   curare data.jsonl --no-llm            # Offline clusters-only output
   curare data.jsonl -o clusters.json    # Single-file output (no splits)
   curare ./texts/ -d out/               # Cluster folder of .md/.txt files
+  curare corpus.lync --no-llm -d out/   # Preserve ids; write Lync annotations
 
 Input:
-  <input>               JSONL file or folder of .md/.txt files
-                        Auto-detects: Alpaca, ShareGPT, OAI, Splice, raw text
+  <input>               .lync or JSONL file, or folder of .md/.txt files
+                        Auto-detects: Lync, Alpaca, ShareGPT, OAI, Splice, raw text
 
 Output (default: curare-out/):
   -d, --out-dir <dir>   Output directory (LLM writes clusters.json, high.jsonl, low.jsonl;
