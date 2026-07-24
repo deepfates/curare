@@ -173,6 +173,43 @@ describe('E2E Pipeline', { timeout: 120000 }, () => {
     expect(targetedIds).toEqual([...sourceIds].sort());
   });
 
+  it('reads preserved Twitter archive text without rewriting the source payload', async () => {
+    const sourceIds = [
+      '019f7000-0000-7000-8000-000000000021',
+      '019f7000-0000-7000-8000-000000000022',
+    ];
+    const raw = sourceIds.map((id, index) => lyncLine({
+      v: 1,
+      id,
+      kind: 'twitter/tweet',
+      at: `2026-07-01T00:01:0${index}.000Z`,
+      author: { actor: 'fixture' },
+      parents: index === 0 ? [] : [sourceIds[0]],
+      payload: {
+        id_str: String(index + 1),
+        full_text: index === 0 ? 'A question about archives.' : 'A preserved archive answer.',
+      },
+    })).join('');
+    const lyncInput = path.join(tempDir, 'twitter.lync');
+    const twitterOutput = path.join(tempDir, 'twitter-output.json');
+    await fs.writeFile(lyncInput, raw);
+
+    const result = spawnSync(
+      'npx',
+      ['tsx', 'src/cli.ts', lyncInput, '--no-llm', '-k', '2', '-o', twitterOutput],
+      {
+        cwd: path.resolve(import.meta.dirname, '..'),
+        encoding: 'utf8',
+        env: { ...process.env, OPENROUTER_API_KEY: '' },
+      }
+    );
+
+    expect(result.status).toBe(0);
+    const output = JSON.parse(await fs.readFile(twitterOutput, 'utf8'));
+    expect(output.clusters.flatMap((cluster: { items: string[] }) => cluster.items).sort())
+      .toEqual([...sourceIds].sort());
+  });
+
   it('replays identical offline input byte-for-byte with a fixed seed', async () => {
     const firstOutput = path.join(tempDir, 'replay-first.json');
     const secondOutput = path.join(tempDir, 'replay-second.json');

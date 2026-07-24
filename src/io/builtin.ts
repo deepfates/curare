@@ -52,6 +52,8 @@ registerAdapter({
 /** Read the two canonical corpus shapes without changing the source event. */
 function lyncPayloadText(payload: Record<string, unknown>): string | null {
   if (typeof payload.text === 'string' && payload.text.length > 0) return payload.text;
+  if (typeof payload.full_text === 'string' && payload.full_text.length > 0) return payload.full_text;
+  if (typeof payload.fullText === 'string' && payload.fullText.length > 0) return payload.fullText;
   if (typeof payload.message === 'string' && payload.message.length > 0) return payload.message;
   if (!payload.message || typeof payload.message !== 'object') return null;
   const message = payload.message as { text?: unknown; content?: unknown };
