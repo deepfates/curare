@@ -32,6 +32,7 @@ registerAdapter({
 
     const eligible = new Set(result.viewEligibleIds);
     const seen = new Set<string>();
+    const items: InputItem[] = [];
     for (const line of result.lines) {
       const event = line.event;
       if (!event || !line.id || !eligible.has(line.id) || seen.has(line.id)) continue;
@@ -39,12 +40,21 @@ registerAdapter({
       if (event.kind === 'lync/annotation' || event.kind === 'lync/tombstone' || event.critical) continue;
       const text = lyncPayloadText(event.payload);
       if (!text) continue;
-      yield {
+      items.push({
         id: event.id,
         text,
         sourceAt: event.at,
         originalLine: new TextDecoder().decode(line.bytes).replace(/\n$/, ''),
-      };
+      });
+    }
+
+    // A Lync union is identified by immutable event bodies, not physical line
+    // order. Feed seeded clustering a canonical order so a valid merge, line
+    // shuffle, or identical duplicate cannot change cluster membership or the
+    // deterministic annotation ids derived from it.
+    items.sort((a, b) => a.id.localeCompare(b.id));
+    for (const item of items) {
+      yield item;
     }
   },
 });

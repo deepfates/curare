@@ -17,6 +17,11 @@ npm, and the unscoped registry name belongs to an unrelated package.
 - The supported Lync range is `>=0.3.0 <0.5.0`; the canonical corpus rehearsal
   tests the unpublished 0.4 source candidate without pretending it is already
   registry-installable.
+- Raw Lync clustering canonicalizes source events by id, so physical line
+  order, identical duplicates, existing annotations, and Lync merge output do
+  not change seeded cluster membership. Pre-canonical-order cluster artifacts
+  must be regenerated from the raw source union rather than combined with the
+  new projection.
 - The maintained Transformers.js 3.8.1 runtime and patched Sharp 0.35.3 chain
   replace the former vulnerable embedding stack.
 

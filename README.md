@@ -98,6 +98,15 @@ K-means initialization uses seed `42` by default, and the seed is recorded in
 Curare version therefore produce the same offline cluster projection. Pass
 `--seed <n>` when a different controlled initialization is useful.
 
+Raw Lync inputs are canonicalized by source event id before embedding. Physical
+JSONL line order, identical duplicate lines, existing annotations, and a Lync
+merge therefore do not change seeded cluster membership or annotation ids.
+Cluster files and Curare annotations produced by the earlier physical-line-order
+0.1 source checkpoint are rebuildable projections, not authorities: when
+adopting the canonical-order checkpoint, replace them by regenerating from the
+raw source union. Do not union old and regenerated cluster annotations and
+mistake the two projections for independent judgments.
+
 **The pipeline:**
 1. Embed the dataset
 2. Cluster with k-means (elbow method for optimal k)

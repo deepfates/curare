@@ -80,6 +80,51 @@ describe('input adapters', () => {
     })]);
   });
 
+  it('canonicalizes raw lync items across line order, annotations, and duplicates', async () => {
+    const ids = [
+      '019f7000-0000-7000-8000-000000000013',
+      '019f7000-0000-7000-8000-000000000011',
+      '019f7000-0000-7000-8000-000000000012',
+    ];
+    const events = ids.map((id, index) => ({
+      v: 1,
+      id,
+      kind: 'corpus/text',
+      at: `2026-07-01T00:00:1${index}.000Z`,
+      author: { actor: 'alice' },
+      parents: [],
+      payload: { text: `item ${id.slice(-2)}` },
+    }));
+    const annotation = {
+      v: 1,
+      id: '019f7000-0000-7000-8000-000000000014',
+      kind: 'lync/annotation',
+      at: '2026-07-01T00:00:14.000Z',
+      author: { actor: 'curator' },
+      parents: [ids[0]],
+      payload: { label: 'note', text: 'not cluster material' },
+    };
+    const first = path.join(tempDir, 'ordered-a.lync');
+    const second = path.join(tempDir, 'ordered-b.lync');
+    await fs.writeFile(
+      first,
+      lyncLine(events[0])
+        + lyncLine(annotation)
+        + lyncLine(events[1])
+        + lyncLine(events[2])
+        + lyncLine(events[0]),
+    );
+    await fs.writeFile(
+      second,
+      lyncLine(events[2]) + lyncLine(events[0]) + lyncLine(annotation) + lyncLine(events[1]),
+    );
+
+    const [loadedFirst, loadedSecond] = await Promise.all([autoLoad(first), autoLoad(second)]);
+    expect(loadedFirst.adapter).toBe('lync');
+    expect(loadedFirst.items.map(item => item.id)).toEqual([...ids].sort());
+    expect(loadedFirst.items).toEqual(loadedSecond.items);
+  });
+
   it('refuses a damaged lync line instead of silently dropping it', async () => {
     const file = path.join(tempDir, 'damaged.lync');
     await fs.writeFile(file, '{"v":1,"id":"x","kind":"corpus/text","at":"2026-07-01T00:00:00Z","author":{"actor":"a"},"parents":[],"payload":{"text":"x"},"digest":"sha256:deadbeef"}\n');
