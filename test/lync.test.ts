@@ -13,6 +13,18 @@ function contentLine(id: string, text: string): string {
 }
 
 describe('raw lync cluster annotations', () => {
+  it('canonicalizes opaque Unicode parent identities by UTF-8 bytes', () => {
+    const annotation = createClusterAnnotation({
+      clusterId: 0,
+      tag: 'opaque identities',
+      parents: ['ä', 'z', 'a', 'A'],
+      at: '2026-07-01T00:00:00.000Z',
+      size: 4,
+    });
+
+    expect(annotation.parents).toEqual(['A', 'a', 'z', 'ä']);
+  });
+
   const parents = [
     '019f7000-0000-7000-8000-000000000001',
     '019f7000-0000-7000-8000-000000000002',

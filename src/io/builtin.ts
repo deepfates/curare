@@ -6,6 +6,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { registerAdapter, type InputItem } from './adapters.js';
 import { parseLyncFiles } from '@deepfates/lync/events';
+import { compareLyncIdentity } from '../order.js';
 
 /** Raw Lync event log. Event ids are the source of truth and are never reminted. */
 registerAdapter({
@@ -52,7 +53,7 @@ registerAdapter({
     // order. Feed seeded clustering a canonical order so a valid merge, line
     // shuffle, or identical duplicate cannot change cluster membership or the
     // deterministic annotation ids derived from it.
-    items.sort((a, b) => a.id.localeCompare(b.id));
+    items.sort((a, b) => compareLyncIdentity(a.id, b.id));
     for (const item of items) {
       yield item;
     }

@@ -98,7 +98,9 @@ K-means initialization uses seed `42` by default, and the seed is recorded in
 Curare version therefore produce the same offline cluster projection. Pass
 `--seed <n>` when a different controlled initialization is useful.
 
-Raw Lync inputs are canonicalized by source event id before embedding. Physical
+Raw Lync inputs are canonicalized by source event id in explicit UTF-8 byte
+order before embedding. This is stable identity enumeration for an otherwise
+set-like clustering input, never an inference of time or causality. Physical
 JSONL line order, identical duplicate lines, existing annotations, and a Lync
 merge therefore do not change seeded cluster membership or annotation ids.
 Cluster files and Curare annotations produced by the earlier physical-line-order
@@ -122,6 +124,12 @@ mistake the two projections for independent judgments.
 - Use `--classify-llm` with a custom prompt (via `--quality-prompt-file`) tailored to your use case
 - Increase samples with `-s 15` or `-s 20` for highly idiosyncratic content
 - Start with `--no-llm` to quickly inspect clusters, then run with `OPENROUTER_API_KEY` or `--classify-llm` for a final split
+
+## Work tracking
+
+Project-owned implementation work is tracked in `.tickets/`; run `tk list`
+from this repository to inspect it. Cross-project corpus coordination remains
+in the workshop root ledger.
 
 ## License
 

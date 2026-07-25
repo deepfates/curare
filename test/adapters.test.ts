@@ -125,6 +125,25 @@ describe('input adapters', () => {
     expect(loadedFirst.items).toEqual(loadedSecond.items);
   });
 
+  it('enumerates opaque lync ids by UTF-8 bytes instead of host locale collation', async () => {
+    const ids = ['ä', 'z', 'a', 'A'];
+    const file = path.join(tempDir, 'opaque-ids.lync');
+    const raw = ids.map((id, index) => lyncLine({
+      v: 1,
+      id,
+      kind: 'corpus/text',
+      at: `2026-07-01T00:01:0${index}.000Z`,
+      author: { actor: 'alice' },
+      parents: [],
+      payload: { text: `item ${id}` },
+    })).join('');
+    await fs.writeFile(file, raw);
+
+    const loaded = await autoLoad(file);
+
+    expect(loaded.items.map(item => item.id)).toEqual(['A', 'a', 'z', 'ä']);
+  });
+
   it('refuses a damaged lync line instead of silently dropping it', async () => {
     const file = path.join(tempDir, 'damaged.lync');
     await fs.writeFile(file, '{"v":1,"id":"x","kind":"corpus/text","at":"2026-07-01T00:00:00Z","author":{"actor":"a"},"parents":[],"payload":{"text":"x"},"digest":"sha256:deadbeef"}\n');

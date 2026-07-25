@@ -1,6 +1,7 @@
 /** Target-preserving Curare annotations for raw Lync corpora. */
 
 import { createHash } from 'node:crypto';
+import { compareLyncIdentity } from './order.js';
 
 export const CURARE_VERSION = '0.1.0';
 export const CURARE_VIA = `curare@${CURARE_VERSION}`;
@@ -47,7 +48,7 @@ function deterministicUuid(seed: string): string {
 }
 
 export function createClusterAnnotation(input: CurareClusterAnnotation): LyncAnnotationEvent {
-  const parents = [...new Set(input.parents)].sort();
+  const parents = [...new Set(input.parents)].sort(compareLyncIdentity);
   if (parents.length === 0) throw new Error('cluster annotation requires at least one target');
   const value: LyncAnnotationEvent['payload']['value'] = {
     cluster_id: input.clusterId,
@@ -82,7 +83,7 @@ export function serializeLyncEvent(event: LyncAnnotationEvent): string {
 export function serializeClusterAnnotations(inputs: CurareClusterAnnotation[]): string {
   return inputs
     .map(createClusterAnnotation)
-    .sort((a, b) => a.id.localeCompare(b.id))
+    .sort((a, b) => compareLyncIdentity(a.id, b.id))
     .map(serializeLyncEvent)
     .join('');
 }
