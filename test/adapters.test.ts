@@ -80,6 +80,49 @@ describe('input adapters', () => {
     })]);
   });
 
+  it('loads every readable source kind through the Lync presenter and skips structure honestly', async () => {
+    const file = path.join(tempDir, 'heterogeneous.lync');
+    const events = [
+      ['001', 'twitter/tweet', { full_text: 'tweet text', private_metadata: 'not model text' }],
+      ['002', 'twitter/like', { fullText: 'liked text' }],
+      ['003', 'bluesky/post', { record: { text: 'bluesky text' } }],
+      ['004', 'glowfic/post', { content: '<p>glowfic text</p><script>privateRaw()</script>' }],
+      ['005', 'twitter/tweet-embed', { embed: { html: '<blockquote>embed text</blockquote>' } }],
+      ['006', 'ocr/page', { text: 'ocr page text', scan_path: '/private/page.txt' }],
+      ['007', 'ocr/document', { text: 'ocr document text' }],
+      ['008', 'glowfic/thread', { id: 'thread', title: 'structure only' }],
+      ['009', 'ocr/set', { locator: 'set', pages: 1, dir: '/private/scans' }],
+      ['010', 'unknown/nested', { payload: { message: 'nested bait' } }],
+      ['011', 'glowfic/post', { text: 'known-kind fallback bait' }],
+    ].map(([suffix, kind, payload]) => ({
+      v: 1,
+      id: `019f7000-0000-7000-8000-000000000${suffix}`,
+      kind,
+      at: '2026-07-01T00:00:00.000Z',
+      author: { actor: 'fixture' },
+      parents: [],
+      payload,
+    }));
+    await fs.writeFile(file, events.map(lyncLine).join(''));
+
+    const { adapter, items } = await autoLoad(file);
+
+    expect(adapter).toBe('lync');
+    expect(items.map(item => item.id)).toEqual(events.slice(0, 7).map(event => event.id));
+    expect(items.map(item => item.text)).toEqual([
+      'tweet text',
+      'liked text',
+      'bluesky text',
+      'glowfic text',
+      'embed text',
+      'ocr page text',
+      'ocr document text',
+    ]);
+    expect(items.map(item => item.text).join('\n')).not.toMatch(
+      /private_metadata|privateRaw|scan_path|\/private\//,
+    );
+  });
+
   it('canonicalizes raw lync items across line order, annotations, and duplicates', async () => {
     const ids = [
       '019f7000-0000-7000-8000-000000000013',

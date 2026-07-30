@@ -17,3 +17,13 @@ A verifier-clean 37-event Splice union contained 3 Twitter archive events, 31 Gl
 
 Curare extracts useful normalized text from every readable raw-Lync kind currently emitted by Splice, including Glowfic posts and tweet embeds, while ignoring non-content containers explicitly; cluster input counts reconcile by kind with named skip reasons; source event ids remain annotation parents; deterministic replay and the full corpus loop pass on a checked-in heterogeneous fixture.
 
+## Notes
+
+**2026-07-30**
+
+The shared Lync presentation seam now supplies exact readable text for Twitter,
+Bluesky, Glowfic, tweet embeds, OCR, and structured messages; the heterogeneous
+adapter regression preserves all source IDs and proves private incidental
+fields do not become embedding text. This ticket remains open because its
+separate per-kind reconciliation and named skip-report requirement is not yet a
+Curare CLI surface; the presentation repair alone does not satisfy that clause.

@@ -14,6 +14,10 @@ npm, and the unscoped registry name belongs to an unrelated package.
 
 ### Changed
 
+- Raw Lync clustering consumes the checksum-pinned Lync presentation candidate
+  instead of maintaining shallow payload-text heuristics. All presented content
+  retains its source event id; structural and unclaimed records are not
+  embedded.
 - The supported Lync range is `>=0.3.0 <0.5.0`; the canonical corpus rehearsal
   tests the unpublished 0.4 source candidate without pretending it is already
   registry-installable.

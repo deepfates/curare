@@ -7,6 +7,10 @@ import * as path from 'node:path';
 import { registerAdapter, type InputItem } from './adapters.js';
 import { parseLyncFiles } from '@deepfates/lync/events';
 import { compareLyncIdentity } from '../order.js';
+import {
+  presentLyncEvent,
+  resolveLyncPresentationProfiles,
+} from '../../vendor/lync-presentation/index.js';
 
 /** Raw Lync event log. Event ids are the source of truth and are never reminted. */
 registerAdapter({
@@ -32,6 +36,11 @@ registerAdapter({
     }
 
     const eligible = new Set(result.viewEligibleIds);
+    const profiles = resolveLyncPresentationProfiles(
+      result.lines.flatMap(line =>
+        line.event && line.id && eligible.has(line.id) ? [line.event] : []
+      ),
+    );
     const seen = new Set<string>();
     const items: InputItem[] = [];
     for (const line of result.lines) {
@@ -39,11 +48,15 @@ registerAdapter({
       if (!event || !line.id || !eligible.has(line.id) || seen.has(line.id)) continue;
       seen.add(line.id);
       if (event.kind === 'lync/annotation' || event.kind === 'lync/tombstone' || event.critical) continue;
-      const text = lyncPayloadText(event.payload);
-      if (!text) continue;
+      const presentation = presentLyncEvent(event, {
+        loomProfile: profiles.get(event.id),
+      });
+      if (presentation.status !== 'presented' || presentation.presentation.kind !== 'content') {
+        continue;
+      }
       items.push({
         id: event.id,
-        text,
+        text: presentation.presentation.text,
         sourceAt: event.at,
         originalLine: new TextDecoder().decode(line.bytes).replace(/\n$/, ''),
       });
@@ -59,29 +72,6 @@ registerAdapter({
     }
   },
 });
-
-/** Read the two canonical corpus shapes without changing the source event. */
-function lyncPayloadText(payload: Record<string, unknown>): string | null {
-  if (typeof payload.text === 'string' && payload.text.length > 0) return payload.text;
-  if (typeof payload.full_text === 'string' && payload.full_text.length > 0) return payload.full_text;
-  if (typeof payload.fullText === 'string' && payload.fullText.length > 0) return payload.fullText;
-  if (typeof payload.message === 'string' && payload.message.length > 0) return payload.message;
-  if (!payload.message || typeof payload.message !== 'object') return null;
-  const message = payload.message as { text?: unknown; content?: unknown };
-  if (typeof message.text === 'string' && message.text.length > 0) return message.text;
-  if (typeof message.content === 'string' && message.content.length > 0) return message.content;
-  if (!Array.isArray(message.content)) return null;
-  const text = message.content
-    .map(block => {
-      if (typeof block === 'string') return block;
-      if (!block || typeof block !== 'object') return '';
-      const value = (block as { text?: unknown }).text;
-      return typeof value === 'string' ? value : '';
-    })
-    .filter(Boolean)
-    .join('');
-  return text || null;
-}
 
 /** Alpaca format: {instruction, input?, output} */
 registerAdapter({

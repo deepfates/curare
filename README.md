@@ -50,6 +50,15 @@ annotation/tombstone records as cluster material and writes a separate
 the exact source ids. The source log is never rewritten and no Loom snapshot is
 created.
 
+Readable input uses Lync's exact kind/profile presentation contract rather than
+a Curare-specific list of text fields. Current Twitter, Bluesky, Glowfic,
+tweet-embed, OCR, structured-message, and ratified Behold content therefore
+share the same allowlisted projection as Textile and Splice. Structural
+containers and unknown payloads are not embedded; incidental provider fields,
+HTML scripts, and workstation paths cannot become model text. The original
+source line remains available for source-format output, and cluster annotations
+still target its immutable event id.
+
 ## Options
 
 ```
