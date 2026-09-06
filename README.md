@@ -1,144 +1,199 @@
-# 🎯 curare
+# 🎯 Curare
 
 > *Precision curation for your data*
 
-> **Status:** source application. This checkout is not the unrelated unscoped
-> `curare` package on npm, and `package.json` is deliberately private until a
-> scoped distribution name and release contract are chosen. Version 0.1.0 is a
-> source checkpoint, not an npm release.
+Curare is a small, sharp instrument for making a text corpus inspectable. It
+embeds supported records, groups nearby material, and surfaces centroid-near
+examples so a curator can decide what belongs together and what may be worth
+keeping. With a deliberately configured OpenRouter judge, it can record a
+high/low judgment for each cluster and partition the source records accordingly.
 
-Semantic clustering for training datasets, with optional LLM quality rating. Feed it conversations, inspect clusters, and use a judge-backed high/low split when an LLM is configured.
+These are aids to curation, not proof that the automatic elbow estimate, the
+clusters, or the judge are right for a particular corpus.
 
-## Install
+This is a private source application. Version `0.1.0` is a source checkpoint,
+not an npm release, and the unscoped `curare` name on npm belongs to an
+unrelated package.
 
-```bash
-git clone https://github.com/deepfates/curare
-cd curare && npm install
+## Safety check: cluster without a judge
+
+Requirements: Node.js 22 or newer and npm. This checked-in fixture verifies the
+no-judge output boundary; it is not a demonstration that Curare has found a
+useful partition of a representative corpus.
+
+This path makes no OpenRouter request, but `--no-llm` does not guarantee zero
+network access. `npm install` accesses the npm registry. Curare also initializes
+Transformers.js before consulting its per-item embedding cache, so the first run
+may download `sentence-transformers/all-MiniLM-L6-v2` model files from Hugging
+Face unless they are already in the library's model cache. Embedding inference
+then runs locally.
+
+```sh
+npm install
+npm start -- test/fixtures/offline-adversarial-refusal.jsonl \
+  --no-llm -k 2 --seed 42 -d curare-out
 ```
 
-Curare supports Node.js 22 or newer. Its local text path uses the maintained
-Hugging Face Transformers.js package with ONNX Runtime; it does not require a
-Python service or a provider key.
+The run writes `curare-out/clusters.json`. It should describe two clusters
+containing eight items in total, with `seed` set to `42`. It deliberately has no
+`rating` fields and does not create `high.jsonl` or `low.jsonl`: no-judge tags
+are rough labels, not quality judgments.
 
-Curare supports `@deepfates/lync >=0.3.0 <0.5.0`. Lync 0.3 and the unpublished
-0.4 candidate share the same v1 event envelope and the parser surface Curare
-uses. Until Lync 0.4 is published, a normal lockfile install remains on 0.3;
-the corpus rehearsal exercises the sibling 0.4 source checkout explicitly.
+You can check those facts with Node itself:
 
-## Usage
-
-```bash
-npx tsx src/cli.ts data.jsonl              # → curare-out/high.jsonl, low.jsonl when OPENROUTER_API_KEY is set
-npx tsx src/cli.ts data.jsonl --no-llm     # Offline clusters-only output
-npx tsx src/cli.ts ./texts/ -d out/        # Folder of .md/.txt files
-npx tsx src/cli.ts corpus.lync --no-llm -d out/ # Preserve raw ids; write cluster annotations
+```sh
+node -e 'const x=require("./curare-out/clusters.json"); console.log(x.k, x.clusters.length, x.clusters.reduce((n,c)=>n+c.size,0), x.clusters.some(c=>"rating" in c))'
+# 2 2 8 false
 ```
 
-Curare auto-detects your format and clusters semantically. Quality rating requires an LLM judge: set `OPENROUTER_API_KEY` or pass `--classify-llm`.
+Curare's separate per-item embedding cache is stored in `.curare/` in the
+current working directory. It does not contain the Transformers.js model files.
 
-## How It Works
+## Teaching example: inspect a real grouping
 
-1. **Load** — Auto-detects format (raw `.lync`, Alpaca, ShareGPT, OAI, Splice, raw text, folders)
-2. **Embed** — Local embeddings via Hugging Face Transformers.js (cached)
-3. **Cluster** — Seeded K-means with elbow method for optimal k
-4. **Tag** — Offline mode emits cluster tags for inspection
-5. **Rate/Split** — LLM mode classifies high/low quality and outputs `high.jsonl` and `low.jsonl` preserving original format
+Save these eight records as `example.jsonl`:
 
-For raw `.lync` input, Curare treats event ids as authoritative. It ignores
-annotation/tombstone records as cluster material and writes a separate
-`<input>.annotations.lync` whose standard `lync/annotation` events point back to
-the exact source ids. The source log is never rewritten and no Loom snapshot is
-created.
-
-Readable input uses Lync's exact kind/profile presentation contract rather than
-a Curare-specific list of text fields. Current Twitter, Bluesky, Glowfic,
-tweet-embed, OCR, structured-message, and ratified Behold content therefore
-share the same allowlisted projection as Textile and Splice. Structural
-containers and unknown payloads are not embedded; incidental provider fields,
-HTML scripts, and workstation paths cannot become model text. The original
-source line remains available for source-format output, and cluster annotations
-still target its immutable event id.
-
-## Options
-
-```
-curare <input> [options]
-
-Output:
-  -d, --out-dir <dir>   Output directory (default: curare-out/); offline writes clusters.json only
-  -o, --out <file>      Single file output (disables splits)
-
-Classification:
-  --classify-llm        Force LLM (auto if OPENROUTER_API_KEY set)
-  --no-llm              Disable LLM quality rating (offline clusters-only mode)
-  --quality-prompt-file Custom prompt for LLM
-  --llm-concurrency <n> Max concurrent LLM requests (default: 4)
-  -s, --samples <n>     Samples per cluster (default: 10)
-
-Clustering:
-  -k, --clusters <n>    Fixed k (default: auto via elbow)
-  --seed <n>            K-means initialization seed (default: 42)
-
-Other:
-  -v, --verbose         Debug output
-  --version             Show version
-  -h, --help            Show help
+```jsonl
+{"id":"garden-1","text":"Tomato seedlings grow best in warm soil with steady watering."}
+{"id":"garden-2","text":"Compost and leaf mulch improve the vegetable garden soil."}
+{"id":"garden-3","text":"Prune the rose after flowering and water its roots deeply."}
+{"id":"garden-4","text":"Basil seedlings need sunlight, moist soil, and room to grow."}
+{"id":"software-1","text":"Cache keys must include model identity to avoid stale embeddings."}
+{"id":"software-2","text":"A bounded worker queue limits concurrent network requests."}
+{"id":"software-3","text":"Database transactions preserve consistency across failed writes."}
+{"id":"software-4","text":"Retry logic should distinguish transient API failures from invalid input."}
 ```
 
-## Environment
+Then cluster it with a fixed `k` so the result is easy to inspect:
 
-```bash
-OPENROUTER_API_KEY=...   # Enables LLM classification automatically
-CURARE_EMBED_MODEL=...   # Optional model (default: sentence-transformers/all-MiniLM-L6-v2)
+```sh
+npm start -- example.jsonl --no-llm -k 2 --seed 42 -d example-out
 ```
 
-The Transformers.js dependency is pinned to 3.8.1 and Sharp is held at the
-patched 0.35.3 runtime. This keeps the production embedding/image chain clear
-of the advisories present in Curare's former Xenova runtime and in the current
-Transformers.js 4.2 ONNX package. Revisit both pins together rather than
-removing the Sharp override in isolation.
+Open `example-out/clusters.json` and compare each cluster's `items` and
+`samples`. With the default model, the four `garden-*` records should form one
+cluster and the four `software-*` records another. This is a small teaching
+example of cluster membership and sampling, not representative evidence that
+Curare improves a dataset or that two clusters are generally correct.
 
-## Background
+## Use your own data
 
-Curare implements the clustering methodology from [**"I want to break some laws too"**](https://snats.xyz/pages/articles/breaking_some_laws.html), which builds on the [Minipile paper](https://huggingface.co/datasets/JeanKaddour/minipile). The key finding: careful data curation can match full dataset performance with a fraction of the data.
+```sh
+# Local inspection without an OpenRouter judgment
+npm start -- data.jsonl --no-llm -d curare-out
 
-K-means initialization uses seed `42` by default, and the seed is recorded in
-`clusters.json`. Identical inputs, embedding model/cache contents, options, and
-Curare version therefore produce the same offline cluster projection. Pass
-`--seed <n>` when a different controlled initialization is useful.
+# Choose a fixed cluster count instead of the automatic elbow heuristic
+npm start -- data.jsonl --no-llm -k 8 --seed 42 -d curare-out
 
-Raw Lync inputs are canonicalized by source event id in explicit UTF-8 byte
-order before embedding. This is stable identity enumeration for an otherwise
-set-like clustering input, never an inference of time or causality. Physical
-JSONL line order, identical duplicate lines, existing annotations, and a Lync
-merge therefore do not change seeded cluster membership or annotation ids.
-Cluster files and Curare annotations produced by the earlier physical-line-order
-0.1 source checkpoint are rebuildable projections, not authorities: when
-adopting the canonical-order checkpoint, replace them by regenerating from the
-raw source union. Do not union old and regenerated cluster annotations and
-mistake the two projections for independent judgments.
+# Judge whole clusters remotely and write high/low source-record splits
+OPENROUTER_API_KEY=... npm start -- data.jsonl --classify-llm -d curare-out
 
-**The pipeline:**
-1. Embed the dataset
-2. Cluster with k-means (elbow method for optimal k)
-3. Use LLM to classify clusters as high/low quality
-4. Keep only the good stuff
+# Preserve raw Lync ids and write separate cluster annotations
+npm start -- corpus.lync --no-llm -d curare-out
+```
 
-**Key insights:**
-- **Typicality sampling** — Curare selects samples *nearest to cluster centroids* rather than random samples. This gives the LLM the most representative examples of each cluster.
-- **Quality over quantity** — The paper found diminishing returns past ~1000 high-quality examples. More data isn't always better.
-- **Cluster inspection** — Use `--no-llm` or `-o clusters.json` to inspect cluster samples before committing to a judge-backed split.
+Inputs may be a raw `.lync` log, JSONL in Alpaca, ShareGPT, OpenAI messages, or
+`{id?, text}` form, or a directory of `.md`, `.markdown`, and `.txt` files. Run
+`npm start -- --help` for the complete CLI reference.
 
-**Tips for best results:**
-- Use `--classify-llm` with a custom prompt (via `--quality-prompt-file`) tailored to your use case
-- Increase samples with `-s 15` or `-s 20` for highly idiosyncratic content
-- Start with `--no-llm` to quickly inspect clusters, then run with `OPENROUTER_API_KEY` or `--classify-llm` for a final split
+Without `-k`, Curare tries a bounded range of cluster counts and chooses the
+largest elbow distance from a line between the first and last measured
+inertias. This is a deterministic heuristic for the supplied embeddings and
+seed, not proof of an optimal or semantically correct cluster count. Inspect the
+result and pass `-k` when the grouping is unsuitable.
 
-## Work tracking
+## Why clusters first
 
-Project-owned implementation work is tracked in `.tickets/`; run `tk list`
-from this repository to inspect it. Cross-project corpus coordination remains
-in the workshop root ledger.
+Curare's cluster-first workflow is inspired by
+[*I want to break some laws too*](https://snats.xyz/pages/articles/breaking_some_laws.html),
+which adapts ideas from the
+[Minipile dataset](https://huggingface.co/datasets/JeanKaddour/minipile): embed
+the corpus, group nearby records, then inspect representative material before
+deciding what to retain. Curare's implemented version is narrower than either
+experiment. It uses text embeddings and centroid-near samples, and can ask an
+LLM to judge each whole cluster; it does not reproduce their dataset creation,
+training runs, or evaluations, and their reported results are not evidence that
+Curare's partitions will improve a particular dataset.
+
+## Outputs and effects
+
+| Mode | Main outputs | External effect |
+| --- | --- | --- |
+| `--no-llm` | `clusters.json`; for Lync, `<input>.annotations.lync` | Curare makes no OpenRouter request. Transformers.js may still retrieve model files from Hugging Face; embedding inference runs locally. |
+| `--classify-llm` | `clusters.json`, high/low records or directories, and judgment provenance | Representative samples are sent to OpenRouter. Provider availability, policy, and cost apply. |
+| `-o <file>` | One cluster JSON file; no split or Lync annotation file | Same embedding and optional judging effects as the selected mode. |
+
+For non-Lync multi-file judged runs, Curare also writes
+`<input>.judgments.lore`. For Lync, rating and model provenance are included in
+the annotation events instead.
+
+Raw Lync input is handled as an append-only source. Curare rejects damaged or
+conflicted logs, embeds only content accepted by the vendored Lync presentation
+contract, preserves source event ids, and writes annotations separately; it
+does not rewrite the source log. Events are enumerated by id in explicit UTF-8
+byte order before seeded clustering. That order is for reproducibility, not
+time or causality. See
+[`vendor/lync-presentation/PROVENANCE.md`](vendor/lync-presentation/PROVENANCE.md)
+for the vendored presentation boundary.
+
+## Configuration
+
+| Setting | Meaning |
+| --- | --- |
+| `OPENROUTER_API_KEY` | Enables remote cluster judging automatically unless `--no-llm` is passed. |
+| `CURARE_EMBED_MODEL` | Replaces the default local embedding model; the first use may download it. |
+| `--model <name>` | Selects the OpenRouter judge model. |
+| `--quality-prompt-file <path>` | Replaces the default cluster-rating prompt. |
+| `--llm-concurrency <n>` | Bounds concurrent OpenRouter requests; default `4`. |
+| `--samples <n>` | Chooses up to this many items nearest each centroid for tagging or judging; default `10`. |
+
+The repository's `custom_prompt.txt` is a Berduck-specific example, not the
+default or a general quality standard. The default judge currently requests
+`google/gemini-3-flash-preview`; the response or requested model name is stored
+as judgment provenance.
+
+## Troubleshooting
+
+- **`No items with text found`:** confirm the first JSONL line has a
+  supported shape, or that a folder contains supported text-file extensions.
+  Non-Lync adapters currently skip malformed JSON lines; validate important
+  inputs before treating item counts as complete.
+- **Clustering fails for a fixed `-k`:** choose a positive cluster count no
+  larger than the number of loaded text items.
+- **Model loading or download fails:** check network access on first use and the
+  configured `CURARE_EMBED_MODEL`. The `.curare/` directory caches embeddings,
+  not the Transformers.js model files.
+- **No high/low split appears:** `--no-llm` intentionally refuses to infer
+  quality. Supply `OPENROUTER_API_KEY` and use `--classify-llm` only when sending
+  representative samples to OpenRouter is acceptable.
+- **A Lync log is refused:** repair or reconcile damaged/conflicting source
+  events upstream. Curare does not silently drop them. Existing annotations and
+  tombstones are valid but are not cluster material.
+- **Rebuilding old Lync results:** regenerate from the raw source union. Do not
+  combine annotations from pre-canonical-order runs with current regenerated
+  annotations as if they were independent judgments.
+
+## Development and project state
+
+```sh
+npm test
+npm run build
+```
+
+Tests cover adapters, embedding/cache behavior, clustering determinism,
+no-judge refusal to invent quality ratings, mocked OpenRouter response handling,
+and Lync/Lore serialization. They do not establish that an automatically
+chosen `k` or a judge's rating is useful for a particular corpus; that requires
+inspection by the person curating it.
+
+Source-checkpoint changes and the release boundary are in
+[`CHANGELOG.md`](CHANGELOG.md). Project-owned unfinished work is in
+[`.tickets/`](.tickets/); the open heterogeneous-Lync ticket records the
+still-missing per-kind reconciliation and named skip report.
+
+Publication remains an owner decision. `package.json` must stay private unless
+the owner chooses a scoped distribution identity and release contract; the
+recorded release boundary also requires a fresh production security audit.
 
 ## License
 
