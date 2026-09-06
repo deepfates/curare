@@ -104,7 +104,7 @@ Usage:
 
 Examples:
   curare data.jsonl                     # Cluster and split by quality when API key is set
-  curare data.jsonl --no-llm            # Offline clusters-only output
+  curare data.jsonl --no-llm            # Clusters only; no remote quality judgment
   curare data.jsonl -o clusters.json    # Single-file output (no splits)
   curare ./texts/ -d out/               # Cluster folder of .md/.txt files
   curare corpus.lync --no-llm -d out/   # Preserve ids; write Lync annotations
@@ -115,16 +115,20 @@ Input:
 
 Output (default: curare-out/):
   -d, --out-dir <dir>   Output directory (LLM writes clusters.json, high.jsonl, low.jsonl;
-                        offline writes clusters.json only)
+                        no-judge mode writes clusters.json only)
   -o, --out <file>      Single output file (disables multi-file mode)
 
 Classification:
   --classify-llm        Force LLM classification (auto if OPENROUTER_API_KEY set)
-  --no-llm              Disable LLM quality rating (offline clusters-only mode)
+  --no-llm              Disable remote quality judgment; model retrieval may still use network
   --model <name>        OpenRouter model (default: google/gemini-3-flash-preview)
   --quality-prompt-file <path>  Custom prompt from file
   --llm-concurrency <n> Max concurrent LLM calls (default: 4)
   -s, --samples <n>     Samples per cluster (default: 10)
+
+Model cache:
+  .curare/ caches embeddings, not Transformers.js model files. First use may
+  download the embedding model from Hugging Face; embedding inference is local.
 
 Clustering:
   -k, --clusters <n>    Fixed cluster count (default: auto via elbow)

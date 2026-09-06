@@ -53,6 +53,22 @@ describe('E2E Pipeline', { timeout: 120000 }, () => {
     expect(result.stdout).toContain('Auto-detects: Lync');
   });
 
+  it('describes no-judge mode without promising zero network access', () => {
+    const result = spawnSync('npx', ['tsx', 'src/cli.ts', '--help'], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(
+      '--no-llm              Disable remote quality judgment; model retrieval may still use network'
+    );
+    expect(result.stdout).toContain(
+      '.curare/ caches embeddings, not Transformers.js model files'
+    );
+    expect(result.stdout).not.toContain('offline');
+  });
+
   it('processes JSONL through full pipeline in offline clusters-only mode', async () => {
     // Create test input with distinct clusters
     const items = [
