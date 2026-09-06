@@ -13,7 +13,13 @@ export { getTextEmbeddings, type EmbedOptions, type EmbedItem } from './embed/te
 export { EmbeddingCache } from './io/cache.js';
 
 // Clustering
-export { clusterEmbeddings, findOptimalK, getNearestToCentroid, type ClusterResult } from './cluster/kmeans.js';
+export {
+  DEFAULT_CLUSTER_SEED,
+  clusterEmbeddings,
+  findOptimalK,
+  getNearestToCentroid,
+  type ClusterResult,
+} from './cluster/kmeans.js';
 
 // Classification
 export { classifyHeuristic, type ClusterClassification, type ClusterTag } from './classify/heuristic.js';

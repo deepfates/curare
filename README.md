@@ -2,6 +2,11 @@
 
 > *Precision curation for your data*
 
+> **Status:** source application. This checkout is not the unrelated unscoped
+> `curare` package on npm, and `package.json` is deliberately private until a
+> scoped distribution name and release contract are chosen. Version 0.1.0 is a
+> source checkpoint, not an npm release.
+
 Semantic clustering for training datasets, with optional LLM quality rating. Feed it conversations, inspect clusters, and use a judge-backed high/low split when an LLM is configured.
 
 ## Install
@@ -10,6 +15,15 @@ Semantic clustering for training datasets, with optional LLM quality rating. Fee
 git clone https://github.com/deepfates/curare
 cd curare && npm install
 ```
+
+Curare supports Node.js 22 or newer. Its local text path uses the maintained
+Hugging Face Transformers.js package with ONNX Runtime; it does not require a
+Python service or a provider key.
+
+Curare supports `@deepfates/lync >=0.3.0 <0.5.0`. Lync 0.3 and the unpublished
+0.4 candidate share the same v1 event envelope and the parser surface Curare
+uses. Until Lync 0.4 is published, a normal lockfile install remains on 0.3;
+the corpus rehearsal exercises the sibling 0.4 source checkout explicitly.
 
 ## Usage
 
@@ -25,8 +39,8 @@ Curare auto-detects your format and clusters semantically. Quality rating requir
 ## How It Works
 
 1. **Load** — Auto-detects format (raw `.lync`, Alpaca, ShareGPT, OAI, Splice, raw text, folders)
-2. **Embed** — Local embeddings via transformers.js (cached)
-3. **Cluster** — K-means with elbow method for optimal k
+2. **Embed** — Local embeddings via Hugging Face Transformers.js (cached)
+3. **Cluster** — Seeded K-means with elbow method for optimal k
 4. **Tag** — Offline mode emits cluster tags for inspection
 5. **Rate/Split** — LLM mode classifies high/low quality and outputs `high.jsonl` and `low.jsonl` preserving original format
 
@@ -35,6 +49,15 @@ annotation/tombstone records as cluster material and writes a separate
 `<input>.annotations.lync` whose standard `lync/annotation` events point back to
 the exact source ids. The source log is never rewritten and no Loom snapshot is
 created.
+
+Readable input uses Lync's exact kind/profile presentation contract rather than
+a Curare-specific list of text fields. Current Twitter, Bluesky, Glowfic,
+tweet-embed, OCR, structured-message, and ratified Behold content therefore
+share the same allowlisted projection as Textile and Splice. Structural
+containers and unknown payloads are not embedded; incidental provider fields,
+HTML scripts, and workstation paths cannot become model text. The original
+source line remains available for source-format output, and cluster annotations
+still target its immutable event id.
 
 ## Options
 
@@ -54,6 +77,7 @@ Classification:
 
 Clustering:
   -k, --clusters <n>    Fixed k (default: auto via elbow)
+  --seed <n>            K-means initialization seed (default: 42)
 
 Other:
   -v, --verbose         Debug output
@@ -65,12 +89,34 @@ Other:
 
 ```bash
 OPENROUTER_API_KEY=...   # Enables LLM classification automatically
-CURARE_EMBED_MODEL=...   # Optional embeddings model (default: Xenova/all-MiniLM-L6-v2)
+CURARE_EMBED_MODEL=...   # Optional model (default: sentence-transformers/all-MiniLM-L6-v2)
 ```
+
+The Transformers.js dependency is pinned to 3.8.1 and Sharp is held at the
+patched 0.35.3 runtime. This keeps the production embedding/image chain clear
+of the advisories present in Curare's former Xenova runtime and in the current
+Transformers.js 4.2 ONNX package. Revisit both pins together rather than
+removing the Sharp override in isolation.
 
 ## Background
 
 Curare implements the clustering methodology from [**"I want to break some laws too"**](https://snats.xyz/pages/articles/breaking_some_laws.html), which builds on the [Minipile paper](https://huggingface.co/datasets/JeanKaddour/minipile). The key finding: careful data curation can match full dataset performance with a fraction of the data.
+
+K-means initialization uses seed `42` by default, and the seed is recorded in
+`clusters.json`. Identical inputs, embedding model/cache contents, options, and
+Curare version therefore produce the same offline cluster projection. Pass
+`--seed <n>` when a different controlled initialization is useful.
+
+Raw Lync inputs are canonicalized by source event id in explicit UTF-8 byte
+order before embedding. This is stable identity enumeration for an otherwise
+set-like clustering input, never an inference of time or causality. Physical
+JSONL line order, identical duplicate lines, existing annotations, and a Lync
+merge therefore do not change seeded cluster membership or annotation ids.
+Cluster files and Curare annotations produced by the earlier physical-line-order
+0.1 source checkpoint are rebuildable projections, not authorities: when
+adopting the canonical-order checkpoint, replace them by regenerating from the
+raw source union. Do not union old and regenerated cluster annotations and
+mistake the two projections for independent judgments.
 
 **The pipeline:**
 1. Embed the dataset
@@ -87,6 +133,12 @@ Curare implements the clustering methodology from [**"I want to break some laws 
 - Use `--classify-llm` with a custom prompt (via `--quality-prompt-file`) tailored to your use case
 - Increase samples with `-s 15` or `-s 20` for highly idiosyncratic content
 - Start with `--no-llm` to quickly inspect clusters, then run with `OPENROUTER_API_KEY` or `--classify-llm` for a final split
+
+## Work tracking
+
+Project-owned implementation work is tracked in `.tickets/`; run `tk list`
+from this repository to inspect it. Cross-project corpus coordination remains
+in the workshop root ledger.
 
 ## License
 

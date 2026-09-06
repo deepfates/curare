@@ -4,6 +4,8 @@
 
 import { kmeans } from 'ml-kmeans';
 
+export const DEFAULT_CLUSTER_SEED = 42;
+
 export interface ClusterResult {
   clusters: number[];      // Cluster index per item
   centroids: number[][];   // Centroid vectors
@@ -24,8 +26,12 @@ function squaredDistance(a: number[], b: number[]): number {
   return sum;
 }
 
-export function clusterEmbeddings(embeddings: number[][], k: number): ClusterResult {
-  const result = kmeans(embeddings, k, { initialization: 'kmeans++' });
+export function clusterEmbeddings(
+  embeddings: number[][],
+  k: number,
+  seed: number = DEFAULT_CLUSTER_SEED
+): ClusterResult {
+  const result = kmeans(embeddings, k, { initialization: 'kmeans++', seed });
   return {
     clusters: result.clusters,
     centroids: result.centroids,
@@ -58,7 +64,11 @@ export function getNearestToCentroid(
  * Returns the K with maximum perpendicular distance from the line
  * connecting K=2 inertia to K=kMax inertia.
  */
-export function findOptimalK(embeddings: number[][], kMax?: number): number {
+export function findOptimalK(
+  embeddings: number[][],
+  kMax?: number,
+  seed: number = DEFAULT_CLUSTER_SEED
+): number {
   const n = embeddings.length;
   if (n < 3) return Math.min(n, 2);
   
@@ -71,7 +81,7 @@ export function findOptimalK(embeddings: number[][], kMax?: number): number {
   const inertias: number[] = [];
   
   for (let k = minK; k <= maxK; k++) {
-    const result = kmeans(embeddings, k, { initialization: 'kmeans++' });
+    const result = kmeans(embeddings, k, { initialization: 'kmeans++', seed });
     
     // Compute inertia: sum of squared distances to centroids
     let inertia = 0;

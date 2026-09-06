@@ -5,6 +5,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
+import { DEFAULT_EMBED_MODEL } from '../embed/model.js';
 
 interface CacheEntry {
   model: string;
@@ -23,7 +24,7 @@ export class EmbeddingCache {
   private data: CacheEntry | null = null;
   private dirty = false;
 
-  constructor(cacheDir = DEFAULT_CACHE_DIR, model = 'Xenova/all-MiniLM-L6-v2') {
+  constructor(cacheDir = DEFAULT_CACHE_DIR, model = DEFAULT_EMBED_MODEL) {
     this.cacheDir = cacheDir;
     this.model = model;
   }
