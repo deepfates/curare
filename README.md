@@ -1,55 +1,34 @@
 # 🎯 Curare
 
-> *Precision curation for your data*
+> *Find the shape of a text corpus before deciding what to keep.*
 
-Curare is a small, sharp instrument for making a text corpus inspectable. It
-embeds supported records, groups nearby material, and surfaces centroid-near
-examples so a curator can decide what belongs together and what may be worth
-keeping. With a deliberately configured OpenRouter judge, it can record a
-high/low judgment for each cluster and partition the source records accordingly.
+Curare groups related text and gives you examples from each group to inspect.
+Use it to get your bearings in a collection of notes, conversations, or other
+text records. You can choose the number of groups, compare their contents, and
+optionally ask an OpenRouter model to judge which groups to keep.
 
-These are aids to curation, not proof that the automatic elbow estimate, the
-clusters, or the judge are right for a particular corpus.
+Judging is coarse: the model sees examples nearest each cluster's center, and
+its high/low rating applies to the whole cluster. Inspect the grouping before
+using those ratings to split your data; unusual records may not resemble the
+examples.
 
 This is a private source application. Version `0.1.0` is a source checkpoint,
 not an npm release, and the unscoped `curare` name on npm belongs to an
 unrelated package.
 
-## Safety check: cluster without a judge
+## Try it: separate two kinds of writing
 
-Requirements: Node.js 22 or newer and npm. This checked-in fixture verifies the
-no-judge output boundary; it is not a demonstration that Curare has found a
-useful partition of a representative corpus.
+Requirements: Node.js 22 or newer and npm, in this source checkout.
 
 This path makes no OpenRouter request, but `--no-llm` does not guarantee zero
 network access. `npm install` accesses the npm registry. Curare also initializes
-Transformers.js before consulting its per-item embedding cache, so the first run
-may download `sentence-transformers/all-MiniLM-L6-v2` model files from Hugging
-Face unless they are already in the library's model cache. Embedding inference
-then runs locally.
+Transformers.js before consulting its per-item embedding cache, so it may
+download `sentence-transformers/all-MiniLM-L6-v2` from Hugging Face unless the
+model files are already cached. Embedding inference runs locally.
 
 ```sh
 npm install
-npm start -- test/fixtures/offline-adversarial-refusal.jsonl \
-  --no-llm -k 2 --seed 42 -d curare-out
 ```
-
-The run writes `curare-out/clusters.json`. It should describe two clusters
-containing eight items in total, with `seed` set to `42`. It deliberately has no
-`rating` fields and does not create `high.jsonl` or `low.jsonl`: no-judge tags
-are rough labels, not quality judgments.
-
-You can check those facts with Node itself:
-
-```sh
-node -e 'const x=require("./curare-out/clusters.json"); console.log(x.k, x.clusters.length, x.clusters.reduce((n,c)=>n+c.size,0), x.clusters.some(c=>"rating" in c))'
-# 2 2 8 false
-```
-
-Curare's separate per-item embedding cache is stored in `.curare/` in the
-current working directory. It does not contain the Transformers.js model files.
-
-## Teaching example: inspect a real grouping
 
 Save these eight records as `example.jsonl`:
 
@@ -72,9 +51,31 @@ npm start -- example.jsonl --no-llm -k 2 --seed 42 -d example-out
 
 Open `example-out/clusters.json` and compare each cluster's `items` and
 `samples`. With the default model, the four `garden-*` records should form one
-cluster and the four `software-*` records another. This is a small teaching
-example of cluster membership and sampling, not representative evidence that
-Curare improves a dataset or that two clusters are generally correct.
+cluster and the four `software-*` records another. `items` lists source ids;
+`samples` lets you read the text nearest each cluster's center. These deliberately
+distinct topics make the result easy to inspect. Your own collection may need a
+different cluster count, and its groups may be less clear-cut.
+
+There are no quality ratings or high/low files in this run: `--no-llm` produces
+rough topic labels, not judgments about what is worth keeping.
+
+### Check the no-judge behavior
+
+The checked-in refusal fixture exercises that distinction:
+
+```sh
+npm start -- test/fixtures/offline-adversarial-refusal.jsonl \
+  --no-llm -k 2 --seed 42 -d curare-out
+node -e 'const x=require("./curare-out/clusters.json"); console.log(x.k, x.clusters.length, x.clusters.reduce((n,c)=>n+c.size,0), x.clusters.some(c=>"rating" in c))'
+# 2 2 8 false
+```
+
+The output contains eight items in two clusters with seed `42`, no `rating`
+fields, and no `high.jsonl` or `low.jsonl`. It tests the absence of an invented
+quality judgment, not the usefulness of this particular grouping.
+
+Curare stores per-item embeddings in `.curare/` in the current working directory.
+That cache is separate from the Transformers.js model cache.
 
 ## Use your own data
 
@@ -99,8 +100,7 @@ Inputs may be a raw `.lync` log, JSONL in Alpaca, ShareGPT, OpenAI messages, or
 Without `-k`, Curare tries a bounded range of cluster counts and chooses the
 largest elbow distance from a line between the first and last measured
 inertias. This is a deterministic heuristic for the supplied embeddings and
-seed, not proof of an optimal or semantically correct cluster count. Inspect the
-result and pass `-k` when the grouping is unsuitable.
+seed. Inspect the result and pass `-k` when the grouping is unsuitable.
 
 ## Why clusters first
 
@@ -182,9 +182,7 @@ npm run build
 
 Tests cover adapters, embedding/cache behavior, clustering determinism,
 no-judge refusal to invent quality ratings, mocked OpenRouter response handling,
-and Lync/Lore serialization. They do not establish that an automatically
-chosen `k` or a judge's rating is useful for a particular corpus; that requires
-inspection by the person curating it.
+and Lync/Lore serialization.
 
 Source-checkpoint changes and the release boundary are in
 [`CHANGELOG.md`](CHANGELOG.md). Project-owned unfinished work is in
